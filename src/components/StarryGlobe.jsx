@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-//need to import backend
 
 //the overall setup of the app
 const StarryGlobe = () => {
@@ -23,16 +22,6 @@ const StarryGlobe = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [selectedCity, setSelectedCity] = useState('');
-
-  // auth state for sign in / create profile
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('signin'); // 'signin' | 'signup'
-  const [authForm, setAuthForm] = useState({ email: '', password: '', name: '' });
-  const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  // store the pending country/continent so we can resume after auth
-  const [pendingSelection, setPendingSelection] = useState(null);
 
   //assisting with being able to click on the actual country
   const [hoveredCountry, setHoveredCountry] = useState(null);
@@ -538,9 +527,12 @@ const StarryGlobe = () => {
 
           if (foundContinent && foundCountry) {
             // Open the search modal directly for this country
-            window.dispatchEvent(new CustomEvent('globe-country-click', {
-              detail: { continent: foundContinent, country: foundCountry }
-            }));
+            setSelectedContinent(foundContinent);
+            setSelectedCountry(foundCountry);
+            setSelectedCity('');
+            setShowResults(false);
+            setSearchCriteria({ role: '', experience: '', specialty: '' });
+            setShowSearchModal(true);
           }
           return; // Pin was clicked, don't also check country meshes
         }
@@ -573,9 +565,12 @@ const StarryGlobe = () => {
 
           if (foundContinent && foundCountry) {
             // Open the search modal directly for this country
-            window.dispatchEvent(new CustomEvent('globe-country-click', {
-              detail: { continent: foundContinent, country: foundCountry }
-            }));
+            setSelectedContinent(foundContinent);
+            setSelectedCountry(foundCountry);
+            setSelectedCity('');
+            setShowResults(false);
+            setSearchCriteria({ role: '', experience: '', specialty: '' });
+            setShowSearchModal(true);
           } else {
             // Country exists in GeoJSON but not in our continents data
             console.log(`${countryName} not in talent database yet`);
@@ -703,82 +698,6 @@ const StarryGlobe = () => {
     };
   }, []);
 
-  // listen for globe click events dispatched from the Three.js click handler
-  useEffect(() => {
-    const handler = (e) => {
-      const { continent, country } = e.detail;
-      handleCountryClicked(continent, country);
-    };
-    window.addEventListener('globe-country-click', handler);
-    return () => window.removeEventListener('globe-country-click', handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
-  // called when a country is clicked on the globe (pin or mesh)
-  // if not authenticated, show auth modal first, then resume after sign in
-  const handleCountryClicked = (continent, country) => {
-    if (!isAuthenticated) {
-      // save what they clicked so we can resume after auth
-      setPendingSelection({ continent, country });
-      setShowAuthModal(true);
-      return;
-    }
-    // user is signed in — go straight to search modal
-    setSelectedContinent(continent);
-    setSelectedCountry(country);
-    setSelectedCity('');
-    setShowResults(false);
-    setSearchCriteria({ role: '', experience: '', specialty: '' });
-    setShowSearchModal(true);
-  };
-
-  // auth submit handler — connects to backend for sign in / sign up
-  
-  const handleAuthSubmit = async () => {
-    setAuthError('');
-    setAuthLoading(true);
-
-    try {
-      
-      const endpoint = authMode === 'signup' ? '/api/auth/signup' : '/api/auth/signin';
-
-      const body = authMode === 'signup'
-        ? { name: authForm.name, email: authForm.email, password: authForm.password }
-        : { email: authForm.email, password: authForm.password };
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Authentication failed');
-      }
-
-
-      setIsAuthenticated(true);
-      setShowAuthModal(false);
-      setAuthForm({ email: '', password: '', name: '' });
-
-      // resume to the search modal with their pending selection
-      if (pendingSelection) {
-        setSelectedContinent(pendingSelection.continent);
-        setSelectedCountry(pendingSelection.country);
-        setSelectedCity('');
-        setShowResults(false);
-        setSearchCriteria({ role: '', experience: '', specialty: '' });
-        setShowSearchModal(true);
-        setPendingSelection(null);
-      }
-    } catch (err) {
-      setAuthError(err.message || 'Something went wrong. Please try again.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   //handlers to see the continent and corporating with it
   const handleContinentSelect = (continent) => {
     setSelectedContinent(continent);
@@ -825,22 +744,10 @@ const StarryGlobe = () => {
     { name: 'Aria Chen', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
     { name: 'Jamal Williams', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
     { name: 'Sofia Reyes', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
-    { name: "Liam O'Brien", role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
+    { name: 'Liam O\'Brien', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
   ];
 
-  // shared floating panel style so modals appear in front of the globe instead of full blackout
-  const floatingPanelStyle = (accentColor) => ({
-    background: 'rgba(10, 0, 20, 0.92)',
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: accentColor,
-    boxShadow: `0 0 60px ${accentColor}88, inset 0 0 40px ${accentColor}22`,
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-  });
-
   return (
-    <>
     <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#0a0014' }}>
 
       {/* curved banner + header  */}
@@ -900,43 +807,6 @@ const StarryGlobe = () => {
             </p>
           </div>
         </div>
-
-        {/* sign in / profile button (top-right corner) */}
-        <div className="absolute top-6 right-6 z-30">
-          {isAuthenticated ? (
-            <button
-              className="px-5 py-2.5 rounded font-bold text-sm tracking-widest transition-all hover:scale-105"
-              style={{
-                background: 'linear-gradient(135deg, #ff00ff, #a855f7)',
-                color: '#fff',
-                border: 'none',
-                boxShadow: '0 0 20px rgba(255,0,255,0.4)',
-              }}
-              onClick={() => {
-                // TODO: link to profile page or open profile modal
-                console.log('Open profile');
-              }}
-            >
-              👤 MY PROFILE
-            </button>
-          ) : (
-            <button
-              className="px-5 py-2.5 rounded font-bold text-sm tracking-widest transition-all hover:scale-105"
-              style={{
-                background: 'transparent',
-                color: '#f0abfc',
-                border: '2px solid #ff00ff',
-                boxShadow: '0 0 20px rgba(255,0,255,0.3)',
-              }}
-              onClick={() => {
-                setPendingSelection(null);
-                setShowAuthModal(true);
-              }}
-            >
-              SIGN IN / JOIN
-            </button>
-          )}
-        </div>
       </div>
 
       
@@ -968,200 +838,17 @@ const StarryGlobe = () => {
         </div>
       )}
 
-    </div>
-
-      {/* auth modal — floating panel in front of the globe for sign in / create profile */}
-      {showAuthModal && (
-        <div
-          className="fixed z-[110] flex items-start justify-center pointer-events-none pt-[8vh]"
-          style={{ inset: 0 }}
-        >
-          {/* semi-transparent scrim so globe shows through */}
-          <div
-            className="absolute inset-0 pointer-events-auto"
-            style={{ background: 'rgba(10, 0, 20, 0.55)' }}
-            onClick={() => { setShowAuthModal(false); setPendingSelection(null); }}
-          />
-
-          <div
-            className="relative max-w-md w-[90vw] p-8 rounded-lg pointer-events-auto"
-            style={{
-              ...floatingPanelStyle('#ff00ff'),
-              animation: 'fadeSlideUp 0.3s ease-out',
-            }}
-          >
-            {/* close button */}
-            <button
-              className="absolute top-4 right-4 w-9 h-9 border-2 text-xl flex items-center justify-center transition-all hover:rotate-90 rounded"
-              style={{ borderColor: '#ff00ff', color: '#ff00ff', background: 'transparent' }}
-              onClick={() => { setShowAuthModal(false); setPendingSelection(null); }}
-            >
-              ✕
-            </button>
-
-            {/* tabs to toggle between sign in and create profile */}
-            <div className="flex gap-1 mb-6">
-              <button
-                className="flex-1 py-2.5 text-sm font-bold tracking-widest rounded-l transition-all"
-                style={{
-                  background: authMode === 'signin' ? 'linear-gradient(135deg, #ff00ff, #a855f7)' : 'transparent',
-                  color: authMode === 'signin' ? '#fff' : '#f0abfc',
-                  border: authMode === 'signin' ? 'none' : '1px solid #ff00ff55',
-                }}
-                onClick={() => { setAuthMode('signin'); setAuthError(''); }}
-              >
-                SIGN IN
-              </button>
-              <button
-                className="flex-1 py-2.5 text-sm font-bold tracking-widest rounded-r transition-all"
-                style={{
-                  background: authMode === 'signup' ? 'linear-gradient(135deg, #ff00ff, #a855f7)' : 'transparent',
-                  color: authMode === 'signup' ? '#fff' : '#f0abfc',
-                  border: authMode === 'signup' ? 'none' : '1px solid #ff00ff55',
-                }}
-                onClick={() => { setAuthMode('signup'); setAuthError(''); }}
-              >
-                CREATE PROFILE
-              </button>
-            </div>
-
-            <h2
-              className="text-2xl md:text-3xl font-black tracking-wider mb-1"
-              style={{ color: '#ff00ff', textShadow: '0 0 20px #ff00ff' }}
-            >
-              {authMode === 'signup' ? 'JOIN THE NETWORK' : 'WELCOME BACK'}
-            </h2>
-            <p className="text-fuchsia-300 tracking-widest mb-6 text-xs">
-              {authMode === 'signup'
-                ? 'Create your Global Studios profile'
-                : 'Sign in to find talent worldwide'}
-            </p>
-
-            {/* error message if auth fails */}
-            {authError && (
-              <div
-                className="mb-4 p-3 rounded text-sm"
-                style={{ background: '#ff006e22', border: '1px solid #ff006e', color: '#ff6eaa' }}
-              >
-                {authError}
-              </div>
-            )}
-
-            <div className="space-y-4 mb-6">
-              {/* name field (sign-up only) */}
-              {authMode === 'signup' && (
-                <div>
-                  <label className="block mb-1.5 text-xs tracking-widest font-semibold text-fuchsia-400">
-                    FULL NAME
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none transition-colors"
-                    style={{ borderColor: '#ff00ff55' }}
-                    placeholder="Your name"
-                    value={authForm.name}
-                    onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
-                    onFocus={(e) => (e.target.style.borderColor = '#ff00ff')}
-                    onBlur={(e) => (e.target.style.borderColor = '#ff00ff55')}
-                  />
-                </div>
-              )}
-
-              {/* email field */}
-              <div>
-                <label className="block mb-1.5 text-xs tracking-widest font-semibold text-fuchsia-400">
-                  EMAIL
-                </label>
-                <input
-                  type="email"
-                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none transition-colors"
-                  style={{ borderColor: '#ff00ff55' }}
-                  placeholder="you@example.com"
-                  value={authForm.email}
-                  onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                  onFocus={(e) => (e.target.style.borderColor = '#ff00ff')}
-                  onBlur={(e) => (e.target.style.borderColor = '#ff00ff55')}
-                />
-              </div>
-
-              {/* password field */}
-              <div>
-                <label className="block mb-1.5 text-xs tracking-widest font-semibold text-fuchsia-400">
-                  PASSWORD
-                </label>
-                <input
-                  type="password"
-                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none transition-colors"
-                  style={{ borderColor: '#ff00ff55' }}
-                  placeholder="••••••••"
-                  value={authForm.password}
-                  onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                  onFocus={(e) => (e.target.style.borderColor = '#ff00ff')}
-                  onBlur={(e) => (e.target.style.borderColor = '#ff00ff55')}
-                />
-              </div>
-            </div>
-
-            {/* submit button for sign in or create profile */}
-            <button
-              className="w-full px-8 py-4 border-none text-white text-lg font-bold tracking-widest transition-all hover:-translate-y-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: 'linear-gradient(135deg, #ff00ff, #a855f7)' }}
-              onClick={handleAuthSubmit}
-              disabled={authLoading || !authForm.email || !authForm.password || (authMode === 'signup' && !authForm.name)}
-            >
-              {authLoading
-                ? '⏳ PLEASE WAIT...'
-                : authMode === 'signup'
-                  ? '🚀 CREATE PROFILE'
-                  : '🔑 SIGN IN'}
-            </button>
-
-            {/* toggle link between sign in and create profile */}
-            <p className="text-center mt-4 text-xs text-fuchsia-300/70">
-              {authMode === 'signin' ? (
-                <>
-                  Don&apos;t have an account?{' '}
-                  <span
-                    className="text-fuchsia-400 cursor-pointer underline underline-offset-2 hover:text-white transition-colors"
-                    onClick={() => { setAuthMode('signup'); setAuthError(''); }}
-                  >
-                    Create Profile
-                  </span>
-                </>
-              ) : (
-                <>
-                  Already have an account?{' '}
-                  <span
-                    className="text-fuchsia-400 cursor-pointer underline underline-offset-2 hover:text-white transition-colors"
-                    onClick={() => { setAuthMode('signin'); setAuthError(''); }}
-                  >
-                    Sign In
-                  </span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* search/filter modal — floating ABOVE the globe (items-start + pt-[8vh]) */}
+      {/* search/filter modal */}
       {showSearchModal && selectedContinent && selectedCountry && (
-        <div
-          className="fixed z-[100] flex items-start justify-center pointer-events-none pt-[8vh]"
-          style={{ inset: 0 }}
-        >
-          {/* lighter scrim so globe stays visible behind */}
-          <div
-            className="absolute inset-0 pointer-events-auto"
-            style={{ background: 'rgba(10, 0, 20, 0.5)' }}
-            onClick={handleCloseAll}
-          />
-
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
           <div 
-            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[85vh] overflow-y-auto pointer-events-auto"
+            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[90vh] overflow-y-auto"
             style={{
-              ...floatingPanelStyle(selectedContinent.color),
-              animation: 'fadeSlideUp 0.3s ease-out',
+              background: '#0f0020',
+              borderWidth: 2,
+              borderStyle: 'solid',
+              borderColor: selectedContinent.color,
+              boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
             }}
           >
             <button
@@ -1288,24 +975,17 @@ const StarryGlobe = () => {
         </div>
       )}
 
-      {/* results modal — also floating above the globe */}
+      {/* results modal */}
       {showResults && selectedContinent && selectedCountry && (
-        <div
-          className="fixed z-[100] flex items-start justify-center pointer-events-none pt-[8vh]"
-          style={{ inset: 0 }}
-        >
-          {/* lighter scrim so globe stays visible behind */}
-          <div
-            className="absolute inset-0 pointer-events-auto"
-            style={{ background: 'rgba(10, 0, 20, 0.5)' }}
-            onClick={handleCloseAll}
-          />
-
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
           <div 
-            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[85vh] overflow-y-auto pointer-events-auto"
+            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[90vh] overflow-y-auto"
             style={{
-              ...floatingPanelStyle(selectedContinent.color),
-              animation: 'fadeSlideUp 0.3s ease-out',
+              background: '#0f0020',
+              borderWidth: 2,
+              borderStyle: 'solid',
+              borderColor: selectedContinent.color,
+              boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
             }}
           >
             <button
@@ -1374,21 +1054,7 @@ const StarryGlobe = () => {
           </div>
         </div>
       )}
-
-      {/* keyframe animation for modal entrance */}
-      <style>{`
-        @keyframes fadeSlideUp {
-          from {
-            opacity: 0;
-            transform: translateY(24px) scale(0.97);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-      `}</style>
-    </>
+    </div>
   );
 };
 
