@@ -7,8 +7,15 @@ const StarryGlobe = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const globeRef = useRef(null);
+  // variables to handle hover over country part
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const mouseRef = useRef(new THREE.Vector2());
+  const countryMeshesRef = useRef([]);
+  const countryBordersRef = useRef(new Map());
+  // ref to store pin meshes for raycasting
+  const pinMeshesRef = useRef([]);
 
-  
+  //variables to assist with selecting on the map
   const [selectedContinent, setSelectedContinent] = useState(null);
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [showCountryList, setShowCountryList] = useState(false);
@@ -16,6 +23,8 @@ const StarryGlobe = () => {
   const [showResults, setShowResults] = useState(false);
   const [selectedCity, setSelectedCity] = useState('');
 
+  //assisting with being able to click on the actual country
+  const [hoveredCountry, setHoveredCountry] = useState(null);
   const [searchCriteria, setSearchCriteria] = useState({
     role: '',
     experience: '',
@@ -130,7 +139,7 @@ const StarryGlobe = () => {
     //to lock the globe in its place 
     controls.enablePan = false; //help not move the globe too much 
     controls.target.set(0, 0, 0);
-    controls.update()
+    controls.update();
 
     
     const starsGeometry = new THREE.BufferGeometry();
@@ -203,6 +212,121 @@ const StarryGlobe = () => {
     pointLight2.position.set(-5, -5, -5);
     scene.add(pointLight2);
 
+    // Country pin locations (lat, lon) — now placed AFTER globe is created
+    const countryPins = [
+      // North America
+      { name: 'United States', lat: 39.8, lon: -98.5, continent: 'North America' },
+      { name: 'Canada', lat: 56.1, lon: -106.3, continent: 'North America' },
+      { name: 'Mexico', lat: 23.6, lon: -102.5, continent: 'North America' },
+      // South America
+      { name: 'Brazil', lat: -14.2, lon: -51.9, continent: 'South America' },
+      { name: 'Argentina', lat: -38.4, lon: -63.6, continent: 'South America' },
+      { name: 'Colombia', lat: 4.5, lon: -74.3, continent: 'South America' },
+      { name: 'Chile', lat: -35.7, lon: -71.5, continent: 'South America' },
+      // Europe
+      { name: 'United Kingdom', lat: 55.4, lon: -3.4, continent: 'Europe' },
+      { name: 'France', lat: 46.2, lon: 2.2, continent: 'Europe' },
+      { name: 'Germany', lat: 51.2, lon: 10.4, continent: 'Europe' },
+      { name: 'Spain', lat: 40.5, lon: -3.7, continent: 'Europe' },
+      { name: 'Italy', lat: 41.9, lon: 12.6, continent: 'Europe' },
+      // Africa
+      { name: 'South Africa', lat: -30.6, lon: 22.9, continent: 'Africa' },
+      { name: 'Nigeria', lat: 9.1, lon: 8.7, continent: 'Africa' },
+      { name: 'Kenya', lat: -0.02, lon: 37.9, continent: 'Africa' },
+      { name: 'Egypt', lat: 26.8, lon: 30.8, continent: 'Africa' },
+      // Asia
+      { name: 'India', lat: 20.6, lon: 79.0, continent: 'Asia' },
+      { name: 'China', lat: 35.9, lon: 104.2, continent: 'Asia' },
+      { name: 'Japan', lat: 36.2, lon: 138.3, continent: 'Asia' },
+      { name: 'South Korea', lat: 35.9, lon: 127.8, continent: 'Asia' },
+      { name: 'Thailand', lat: 15.9, lon: 100.9, continent: 'Asia' },
+      // Oceania
+      { name: 'Australia', lat: -25.3, lon: 133.8, continent: 'Oceania' },
+      { name: 'New Zealand', lat: -40.9, lon: 174.9, continent: 'Oceania' },
+      { name: 'Fiji', lat: -17.7, lon: 178.0, continent: 'Oceania' },
+    ];
+
+    // Create pin meshes on the globe — globe now exists so we can attach to it
+    const pinMeshes = [];
+    const pinGroup = new THREE.Group();
+    globe.add(pinGroup); // Attach to globe so pins rotate with it
+
+    countryPins.forEach(pin => {
+      const phi = (90 - pin.lat) * (Math.PI / 180);
+      const theta = (pin.lon + 180) * (Math.PI / 180);
+
+      const x = -1.02 * Math.sin(phi) * Math.cos(theta);
+      const y = 1.02 * Math.cos(phi);
+      const z = 1.02 * Math.sin(phi) * Math.sin(theta);
+
+      // Find continent color
+      const cont = continents.find(c => c.name === pin.continent);
+      const pinColor = cont ? cont.color : '#ff00ff';
+
+      // Pin stem (thin cylinder)
+      const stemGeometry = new THREE.CylinderGeometry(0.003, 0.003, 0.06, 6);
+      const stemMaterial = new THREE.MeshBasicMaterial({ color: pinColor });
+      const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+
+      // Pin head (sphere)
+      const headGeometry = new THREE.SphereGeometry(0.018, 12, 12);
+      const headMaterial = new THREE.MeshBasicMaterial({
+        color: pinColor,
+        transparent: true,
+        opacity: 0.95
+      });
+      const head = new THREE.Mesh(headGeometry, headMaterial);
+      head.position.y = 0.045; // On top of the stem
+
+      // Glow ring around head
+      const glowGeometry = new THREE.RingGeometry(0.02, 0.035, 16);
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: pinColor,
+        transparent: true,
+        opacity: 0.4,
+        side: THREE.DoubleSide
+      });
+      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+      glow.position.y = 0.045;
+
+      // Group the pin parts
+      const pinMesh = new THREE.Group();
+      pinMesh.add(stem);
+      pinMesh.add(head);
+      pinMesh.add(glow);
+
+      // Position on globe surface
+      pinMesh.position.set(x, y, z);
+
+      // Orient pin to point outward from globe center
+      pinMesh.lookAt(0, 0, 0);
+      pinMesh.rotateX(Math.PI / 2); // Align cylinder upward from surface
+
+      // Store data for raycasting
+      pinMesh.userData = {
+        isPin: true,
+        countryName: pin.name,
+        continentName: pin.continent
+      };
+
+      // Also tag each child so raycaster can find the parent
+      pinMesh.children.forEach(child => {
+        child.userData = {
+          isPin: true,
+          countryName: pin.name,
+          continentName: pin.continent
+        };
+      });
+
+      pinGroup.add(pinMesh);
+      // Push the head and stem (clickable parts) into our array for raycasting
+      pinMeshes.push(head);
+      pinMeshes.push(stem);
+    });
+
+    // Store pin meshes in ref so click handler can access them
+    pinMeshesRef.current = pinMeshes;
+
     //loading the geojson data for the 3d globe to make it accurate
     const countryGroup = new THREE.Group();
     scene.add(countryGroup);
@@ -250,36 +374,96 @@ const StarryGlobe = () => {
           .catch(err => console.log('No GeoJSON available:', err));
       });
 
-      //adding the element to hover over the country and light it up
-      function drawCountry(coordinates, countryName, group) {
-        coordinates.forEach(ring => {
-          const points = [];
+    //adding the element to hover over the country and light it up
+    function drawCountry(coordinates, countryName, group) {
+      coordinates.forEach(ring => {
+        const points = [];
 
-          ring.forEach(([lon, lat]) => {
-            const phi = (90 - lat) * (Math.PI / 180);
-            const theta = (lon + 180) * (Math.PI / 180);
+        ring.forEach(([lon, lat]) => {
+          const phi = (90 - lat) * (Math.PI / 180);
+          const theta = (lon + 180) * (Math.PI / 180);
 
-            const x = -1.015 * Math.sin(phi) * Math.cos(theta);
-            const y = 1.015 * Math.cos(phi);
-            const z = 1.015 * Math.sin(phi) * Math.sin(theta);
-            
-            points.push(new THREE.Vector3(x, y, z));
-          });
-          
-          if (points.length > 3) {
-            // Just draw the border line
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-            const lineMaterial = new THREE.LineBasicMaterial({
-              color: 0x00ffff,
-              transparent: true,
-              opacity: 0.6,
-              linewidth: 2
-            });
-            const line = new THREE.Line(lineGeometry, lineMaterial);
-            group.add(line);
-          }
+          const x = -1.015 * Math.sin(phi) * Math.cos(theta);
+          const y = 1.015 * Math.cos(phi);
+          const z = 1.015 * Math.sin(phi) * Math.sin(theta);
+
+          points.push(new THREE.Vector3(x, y, z));
         });
-      }
+
+        if (points.length > 3) {
+          // Draw the visible border line 
+          const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+          const lineMaterial = new THREE.LineBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.6,
+            linewidth: 2
+          });
+          const line = new THREE.Line(lineGeometry, lineMaterial);
+          line.userData.countryName = countryName;
+          group.add(line);
+
+          // Store border reference for hover highlighting
+          if (!countryBordersRef.current.has(countryName)) {
+            countryBordersRef.current.set(countryName, []);
+          }
+          countryBordersRef.current.get(countryName).push(line);
+
+          //Create a clickable filled mesh using triangulation
+          try {
+            
+            // Calculate centroid of the points
+            const centroid = new THREE.Vector3(0, 0, 0);
+            points.forEach(p => centroid.add(p));
+            centroid.divideScalar(points.length);
+            // Push centroid outward to globe surface
+            centroid.normalize().multiplyScalar(1.015);
+
+            const vertices = [];
+            const indices = [];
+
+            // Add centroid as vertex 0
+            vertices.push(centroid.x, centroid.y, centroid.z);
+
+            // Add all polygon points
+            points.forEach(p => {
+              vertices.push(p.x, p.y, p.z);
+            });
+
+            // Create fan triangles from centroid to each edge
+            for (let i = 1; i < points.length; i++) {
+              indices.push(0, i, i + 1);
+            }
+            // Close the fan
+            indices.push(0, points.length, 1);
+
+            const meshGeometry = new THREE.BufferGeometry();
+            meshGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            meshGeometry.setIndex(indices);
+            meshGeometry.computeVertexNormals();
+
+            const meshMaterial = new THREE.MeshBasicMaterial({
+              color: 0xff00ff,
+              transparent: true,
+              opacity: 0.0,      
+              side: THREE.DoubleSide,
+              depthWrite: false
+            });
+
+            const mesh = new THREE.Mesh(meshGeometry, meshMaterial);
+            mesh.userData.isCountry = true;
+            mesh.userData.countryName = countryName;
+            group.add(mesh);
+
+            // Store reference for raycasting
+            countryMeshesRef.current.push(mesh);
+          } catch (e) {
+            
+            console.warn('Could not create mesh for', countryName, e);
+          }
+        }
+      });
+    }
 
     //drawing a polygon from  geojson
     function drawPolygon(coordinates, group) {
@@ -311,7 +495,158 @@ const StarryGlobe = () => {
       });
     }
 
-   //animation loop
+    //handle the mouse movement
+    const handleMouseMove = (e) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    };
+
+    // Click handler — checks BOTH pins and country meshes
+    const handleClick = (e) => {
+      // Update mouse position
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycasterRef.current.setFromCamera(mouseRef.current, camera);
+
+      // First check pins (they sit on top of the globe, so check them first)
+      const pinIntersects = raycasterRef.current.intersectObjects(pinMeshesRef.current, true);
+
+      if (pinIntersects.length > 0) {
+        const hit = pinIntersects[0].object;
+        const countryName = hit.userData.countryName;
+        const continentName = hit.userData.continentName;
+
+        if (countryName) {
+          console.log('Clicked pin:', countryName, continentName);
+
+          const foundContinent = continents.find(c => c.name === continentName);
+          const foundCountry = foundContinent?.countries.find(c => c.name === countryName);
+
+          if (foundContinent && foundCountry) {
+            // Open the search modal directly for this country
+            setSelectedContinent(foundContinent);
+            setSelectedCountry(foundCountry);
+            setSelectedCity('');
+            setShowResults(false);
+            setSearchCriteria({ role: '', experience: '', specialty: '' });
+            setShowSearchModal(true);
+          }
+          return; // Pin was clicked, don't also check country meshes
+        }
+      }
+
+      // If no pin was hit, check country meshes as fallback
+      const countryIntersects = raycasterRef.current.intersectObjects(countryMeshesRef.current);
+
+      if (countryIntersects.length > 0) {
+        const clickedMesh = countryIntersects[0].object;
+        if (clickedMesh.userData.isCountry) {
+          const countryName = clickedMesh.userData.countryName;
+          console.log('Clicked country:', countryName);
+
+          // Find which continent this country belongs to
+          let foundContinent = null;
+          let foundCountry = null;
+
+          for (const continent of continents) {
+            const country = continent.countries.find(c => 
+              countryName.toLowerCase().includes(c.name.toLowerCase()) ||
+              c.name.toLowerCase().includes(countryName.toLowerCase())
+            );
+            if (country) {
+              foundContinent = continent;
+              foundCountry = country;
+              break;
+            }
+          }
+
+          if (foundContinent && foundCountry) {
+            // Open the search modal directly for this country
+            setSelectedContinent(foundContinent);
+            setSelectedCountry(foundCountry);
+            setSelectedCity('');
+            setShowResults(false);
+            setSearchCriteria({ role: '', experience: '', specialty: '' });
+            setShowSearchModal(true);
+          } else {
+            // Country exists in GeoJSON but not in our continents data
+            console.log(`${countryName} not in talent database yet`);
+          }
+        }
+      }
+    };
+
+    renderer.domElement.addEventListener('click', handleClick);
+
+    //adding an event listener for it 
+    window.addEventListener('mousemove', handleMouseMove);
+
+    // Hover function — checks both pins and country meshes
+    function checkHover() {
+      raycasterRef.current.setFromCamera(mouseRef.current, camera);
+
+      // First check pin hover
+      const pinIntersects = raycasterRef.current.intersectObjects(pinMeshesRef.current, true);
+
+      // Reset all pins to normal scale
+      pinMeshesRef.current.forEach(mesh => {
+        if (mesh.geometry.type === 'SphereGeometry') {
+          mesh.scale.set(1, 1, 1);
+        }
+      });
+
+      // Reset all country borders to default (cyan)
+      countryBordersRef.current.forEach((borders) => {
+        borders.forEach(border => {
+          border.material.color.setHex(0x00ffff); // Cyan
+          border.material.opacity = 0.6;
+        });
+      });
+
+      // Check if hovering over a pin
+      if (pinIntersects.length > 0) {
+        const hit = pinIntersects[0].object;
+        if (hit.userData.isPin) {
+          // Scale up the pin head on hover
+          if (hit.geometry.type === 'SphereGeometry') {
+            hit.scale.set(1.5, 1.5, 1.5);
+          }
+          setHoveredCountry(hit.userData.countryName);
+          renderer.domElement.style.cursor = 'pointer';
+          return; // Pin hover takes priority, skip country mesh check
+        }
+      }
+
+      // If no pin hovered, check country meshes
+      const countryIntersects = raycasterRef.current.intersectObjects(countryMeshesRef.current);
+
+      if (countryIntersects.length > 0) {
+        const hoveredMesh = countryIntersects[0].object;
+        if (hoveredMesh.userData.isCountry) {
+          const countryName = hoveredMesh.userData.countryName;
+          
+          // Make country borders glow GREEN
+          const borders = countryBordersRef.current.get(countryName);
+          if (borders) {
+            borders.forEach(border => {
+              border.material.color.setHex(0x00ff00); // Green glow
+              border.material.opacity = 1.0; // Full brightness
+            });
+          }
+          
+          setHoveredCountry(countryName);
+          renderer.domElement.style.cursor = 'pointer';
+        }
+      } else {
+        setHoveredCountry(null);
+        renderer.domElement.style.cursor = 'grab';
+      }
+    }
+
+    //animation loop
     let animationId;
     const animate = () => {
       animationId = requestAnimationFrame(animate);
@@ -325,7 +660,7 @@ const StarryGlobe = () => {
       stars.rotation.y += 0.0002;
 
       // calling the hover function
-      // checkHover();
+      checkHover();
       
       controls.update();
       renderer.render(scene, camera);
@@ -346,7 +681,8 @@ const StarryGlobe = () => {
     //cleaning up the animation to make sure its properly working out
     return () => {
       window.removeEventListener('resize', handleResize);
-      // window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousemove', handleMouseMove);
+      renderer.domElement.removeEventListener('click', handleClick);
 
       cancelAnimationFrame(animationId);
       currentMount.removeChild(renderer.domElement);
@@ -462,29 +798,47 @@ const StarryGlobe = () => {
             GLOBAL TALENT NETWORK
           </p>
         </div>
+
+        {/* Controls Info — moved to top, under subtitle */}
+        <div className="text-center mt-2">
+          <div className="inline-block bg-[rgba(26,0,51,0.9)] border border-fuchsia-500/40 px-6 py-2 backdrop-blur-lg rounded">
+            <p className="text-xs md:text-sm tracking-wider text-fuchsia-400">
+              🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 CLICK A PIN TO FIND TALENT
+            </p>
+          </div>
+        </div>
       </div>
 
       
-      {/* Three.js Canvas — */}
+      {/* Three.js Canvas */}
       <div 
         ref={mountRef} 
         className="absolute inset-0 z-0" 
         style={{ 
-          width: '100w', 
-          height : '100vh'
+          width: '100vw', 
+          height: '100vh'
         }} 
       />
 
-      {/* Controls Info */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
-        <div className="bg-[rgba(26,0,51,0.9)] border-2 border-fuchsia-500/40 px-6 py-3 backdrop-blur-lg rounded">
-          <p className="text-xs md:text-sm tracking-wider text-fuchsia-400">
-            🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 SELECT A CONTINENT TO FIND TALENT
-          </p>
+      {/* Country name tooltip on hover */}
+      {hoveredCountry && (
+        <div 
+          className="fixed z-[200] pointer-events-none px-3 py-1.5 rounded text-sm font-bold tracking-wider"
+          style={{
+            left: '50%',
+            bottom: '40px',
+            transform: 'translateX(-50%)',
+            background: 'rgba(26, 0, 51, 0.95)',
+            border: '1px solid #ff00ff',
+            color: '#f0abfc',
+            boxShadow: '0 0 20px rgba(255, 0, 255, 0.4)'
+          }}
+        >
+          📍 {hoveredCountry}
         </div>
-      </div>
+      )}
 
-      {/* Continent Selection Buttons */}
+      {/* Continent Selection Buttons — commented out, using pins instead
       <div className="absolute right-6 top-1/2 -translate-y-1/2 z-50 space-y-3">
         {continents.map((continent, idx) => (
           <button
@@ -505,9 +859,9 @@ const StarryGlobe = () => {
             {continent.name}
           </button>
         ))}
-      </div>
+      </div> */}
 
-      {/* country list modal */}
+      {/* country list modal — commented out, clicking pins goes straight to search
       {showCountryList && selectedContinent && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
           <div 
@@ -564,7 +918,7 @@ const StarryGlobe = () => {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* search/filter modal */}
       {showSearchModal && selectedContinent && selectedCountry && (
