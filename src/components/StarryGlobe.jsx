@@ -7,17 +7,15 @@ const StarryGlobe = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const globeRef = useRef(null);
-  //variables to handle hover over country part
-  const raycasterRef = useRef(new THREE.Raycaster());
-  const mouseRef = useRef(new THREE.Vector2());
-  const countryMeshesRef = useRef([]);
+
   
   const [selectedContinent, setSelectedContinent] = useState(null);
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [showCountryList, setShowCountryList] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [selectedCity, setSelectedCity] = useState('');
 
-  const[hoveredCountry, setHoveredCountry] = useState(null);
   const [searchCriteria, setSearchCriteria] = useState({
     role: '',
     experience: '',
@@ -29,32 +27,62 @@ const StarryGlobe = () => {
     {
       name: 'North America',
       color: '#ff00ff',
-      countries: ['United States', 'Canada', 'Mexico']
+      countries: [
+        { name: 'United States', cities: ['Los Angeles', 'New York', 'Atlanta', 'Chicago'] },
+        { name: 'Canada', cities: ['Toronto', 'Vancouver', 'Montreal'] },
+        { name: 'Mexico', cities: ['Mexico City', 'Guadalajara'] }
+      ]
     },
     {
       name: 'South America',
       color: '#ff006e',
-      countries: ['Brazil', 'Argentina', 'Colombia', 'Chile']
+      countries: [
+        { name: 'Brazil', cities: ['São Paulo', 'Rio de Janeiro'] },
+        { name: 'Argentina', cities: ['Buenos Aires'] },
+        { name: 'Colombia', cities: ['Bogotá', 'Medellín'] },
+        { name: 'Chile', cities: ['Santiago'] }
+      ]
     },
     {
       name: 'Europe',
       color: '#a855f7',
-      countries: ['United Kingdom', 'France', 'Germany', 'Spain', 'Italy']
+      countries: [
+        { name: 'United Kingdom', cities: ['London', 'Manchester'] },
+        { name: 'France', cities: ['Paris', 'Lyon'] },
+        { name: 'Germany', cities: ['Berlin', 'Munich'] },
+        { name: 'Spain', cities: ['Madrid', 'Barcelona'] },
+        { name: 'Italy', cities: ['Rome', 'Milan'] }
+      ]
     },
     {
       name: 'Africa',
       color: '#e879f9',
-      countries: ['South Africa', 'Nigeria', 'Kenya', 'Egypt']
+      countries: [
+        { name: 'South Africa', cities: ['Cape Town', 'Johannesburg'] },
+        { name: 'Nigeria', cities: ['Lagos', 'Abuja'] },
+        { name: 'Kenya', cities: ['Nairobi'] },
+        { name: 'Egypt', cities: ['Cairo'] }
+      ]
     },
     {
       name: 'Asia',
       color: '#7c3aed',
-      countries: ['India', 'China', 'Japan', 'South Korea', 'Thailand']
+      countries: [
+        { name: 'India', cities: ['Mumbai', 'Delhi', 'Bangalore'] },
+        { name: 'China', cities: ['Beijing', 'Shanghai'] },
+        { name: 'Japan', cities: ['Tokyo', 'Osaka'] },
+        { name: 'South Korea', cities: ['Seoul'] },
+        { name: 'Thailand', cities: ['Bangkok'] }
+      ]
     },
     {
       name: 'Oceania',
       color: '#f0abfc',
-      countries: ['Australia', 'New Zealand', 'Fiji']
+      countries: [
+        { name: 'Australia', cities: ['Sydney', 'Melbourne', 'Brisbane'] },
+        { name: 'New Zealand', cities: ['Auckland', 'Wellington'] },
+        { name: 'Fiji', cities: ['Suva'] }
+      ]
     }
   ];
 
@@ -97,6 +125,7 @@ const StarryGlobe = () => {
     controls.rotateSpeed = 0.5;
     controls.minDistance = 2;
     controls.maxDistance = 5;
+    
     
     //to lock the globe in its place 
     controls.enablePan = false; //help not move the globe too much 
@@ -225,30 +254,29 @@ const StarryGlobe = () => {
       function drawCountry(coordinates, countryName, group) {
         coordinates.forEach(ring => {
           const points = [];
-          
+
           ring.forEach(([lon, lat]) => {
             const phi = (90 - lat) * (Math.PI / 180);
             const theta = (lon + 180) * (Math.PI / 180);
-            
-            const x = -1.01 * Math.sin(phi) * Math.cos(theta);
-            const y = 1.01 * Math.cos(phi);
-            const z = 1.01 * Math.sin(phi) * Math.sin(theta);
+
+            const x = -1.015 * Math.sin(phi) * Math.cos(theta);
+            const y = 1.015 * Math.cos(phi);
+            const z = 1.015 * Math.sin(phi) * Math.sin(theta);
             
             points.push(new THREE.Vector3(x, y, z));
           });
-
-          if (points.length > 2) {
+          
+          if (points.length > 3) {
+            // Just draw the border line
             const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
             const lineMaterial = new THREE.LineBasicMaterial({
               color: 0x00ffff,
               transparent: true,
-              opacity: 0.5,
-              linewidth: 1
+              opacity: 0.6,
+              linewidth: 2
             });
             const line = new THREE.Line(lineGeometry, lineMaterial);
-            line.userData = { countryName, isCountry: true };
             group.add(line);
-            countryMeshesRef.current.push(line);
           }
         });
       }
@@ -283,46 +311,6 @@ const StarryGlobe = () => {
       });
     }
 
-    //handle the mouse movement
-    const handleMouseMove = (e) => {
-      //updating mouse position for raycasting
-      mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1; 
-      mouseRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    };
-
-    //adding an event listner for it 
-    window.addEventListener('mousemove', handleMouseMove);
-
-    function checkHover() {
-      raycasterRef.current.setFromCamera(mouseRef.current, camera);
-      const intersects = raycasterRef.current.intersectObjects(countryMeshesRef.current);
-
-
-      //reset the countries to default
-      countryMeshesRef.current.forEach(mesh => {
-        mesh.material.color.setHex(0x00ffff); //cyan like color
-        mesh.material.opacity = 0.5;
-      });
-
-      //if hovering over the a country
-      if (intersects.length > 0) {
-        const hoveredMesh = intersects[0].object;
-        if (hoveredMesh.userData.isCountry) {
-          // make the country glow
-          hoveredMesh.material.color.setHex(0xff00ff); //magenta color
-          hoveredMesh.material.opacity = 1.0; //Full brightness to show that its selected 
-          
-
-          setHoveredCountry(hoveredMesh.userData.countryName);
-          renderer.domElement.style.cursor = 'pointer';
-
-        }
-      } else {
-        setHoveredCountry(null);
-        renderer.domElement.style.cursor = 'grab';
-      }
-    }
-
    //animation loop
     let animationId;
     const animate = () => {
@@ -337,7 +325,7 @@ const StarryGlobe = () => {
       stars.rotation.y += 0.0002;
 
       // calling the hover function
-      checkHover();
+      // checkHover();
       
       controls.update();
       renderer.render(scene, camera);
@@ -358,7 +346,7 @@ const StarryGlobe = () => {
     //cleaning up the animation to make sure its properly working out
     return () => {
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('mousemove', handleMouseMove);
+      // window.removeEventListener('mousemove', handleMouseMove);
 
       cancelAnimationFrame(animationId);
       currentMount.removeChild(renderer.domElement);
@@ -377,66 +365,131 @@ const StarryGlobe = () => {
   //handlers to see the continent and corporating with it
   const handleContinentSelect = (continent) => {
     setSelectedContinent(continent);
+    setSelectedCountry(null);
+    setSelectedCity('');
+    setShowResults(false);
+    setSearchCriteria({ role: '', experience: '', specialty: '' });
     setShowCountryList(true);
   };
 
   const handleCountrySelect = (country) => {
     setSelectedCountry(country);
+    setSelectedCity('');
     setShowCountryList(false);
     setShowSearchModal(true);
   };
 
   const handleSearch = () => {
-    console.log('Searching:', searchCriteria, 'in', selectedCountry, selectedContinent?.name);
+    console.log('Searching:', searchCriteria, 'in', selectedCountry?.name || selectedCountry, selectedCity, selectedContinent?.name);
+    // show results popup instead of closing everything
     setShowSearchModal(false);
+    setShowResults(true);
+  };
+
+  // close everything and reset
+  const handleCloseAll = () => {
+    setShowCountryList(false);
+    setShowSearchModal(false);
+    setShowResults(false);
+    setSelectedContinent(null);
     setSelectedCountry(null);
+    setSelectedCity('');
     setSearchCriteria({ role: '', experience: '', specialty: '' });
   };
 
+  // go back from results to refine the search
+  const handleRefineSearch = () => {
+    setShowResults(false);
+    setShowSearchModal(true);
+  };
+
+  // mock results for demo
+  const mockResults = [
+    { name: 'Aria Chen', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
+    { name: 'Jamal Williams', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
+    { name: 'Sofia Reyes', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
+    { name: 'Liam O\'Brien', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
+  ];
+
   return (
-    <div className="relative w-screen h-screen overflow-hidden">
-      {/* Three.js Canvas */}
-      <div ref={mountRef} className="absolute inset-0 z-0" style={{ width: '100w', height: '100vh', }} />
-      
-      
-      {/* Header */}
-      <header className="absolute top-8 left-1/2 -translate-x-1/2 text-center z-50 w-full px-4">
-        <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-[0.3em] mb-3 text-white text-shadow-neon-strong">
-          GlOBAL STUDIOS
-        </h1>
-        <p className="text-sm md:text-base lg:text-lg tracking-[0.2em] text-fuchsia-400 animate-pulse-slow text-shadow-fuchsia">
-          GLOBAL TALENT NETWORK
-        </p>
-      </header>
+    <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#0a0014' }}>
 
-      {/* hovered country attribution */}
-
-      {hoveredCountry && (
-        <div className="absolute top-32 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-        <div className="px-6 py-3 bg-gradient-to-r from-fuchsia-500/90 to-cyan-500/90 border-2 border-white/50 backdrop-blur md rounded-full">
-        <p className="text-white font-bold tracking-wider test-sm md:text-base">
-          📍{hoveredCountry}
-        </p>
+      {/* curved banner + header  */}
+      <div className="relative z-20 pt-6 pb-2">
+        {/* Curved Banner on Globe */}
+        <div className="flex justify-center">
+          <svg width="620" height="90" viewBox="0 0 620 90" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_30px_rgba(255,0,255,0.8)]" style={{ maxWidth: '90vw' }}>
+            <defs>
+              <path id="textCurve" d="M 40,75 Q 310,15 580,75" fill="none"/>
+              
+              <linearGradient id="bannerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ff00ff" stopOpacity="0.9"/>
+                <stop offset="50%" stopColor="#a855f7" stopOpacity="0.95"/>
+                <stop offset="100%" stopColor="#ff006e" stopOpacity="0.9"/>
+              </linearGradient>
+              
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+            
+            <path d="M 40,75 Q 310,15 580,75 L 580,88 Q 310,28 40,88 Z" 
+                  fill="url(#bannerGrad)" 
+                  opacity="0.85"
+                  filter="url(#glow)"/>
+            
+            <text 
+              fill="white" 
+              fontSize="34" 
+              fontWeight="900" 
+              letterSpacing="10"
+              fontFamily="Orbitron, Rajdhani, Arial Black, sans-serif"
+              filter="url(#glow)">
+              <textPath href="#textCurve" startOffset="50%" textAnchor="middle">
+                GLOBAL STUDIOS
+              </textPath>
+            </text>
+          </svg>
+        </div>
         
+        {/* Header subtitle */}
+        <div className="text-center mt-1">
+          <p className="text-sm md:text-base tracking-[0.2em] text-fuchsia-400 animate-pulse">
+            GLOBAL TALENT NETWORK
+          </p>
         </div>
-        </div>
-      )}
+      </div>
+
+      
+      {/* Three.js Canvas — */}
+      <div 
+        ref={mountRef} 
+        className="absolute inset-0 z-0" 
+        style={{ 
+          width: '100w', 
+          height : '100vh'
+        }} 
+      />
 
       {/* Controls Info */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
-        <div className="bg-[rgba(26,0,51,0.9)] border-2 border-fuchsia-500/40 px-6 py-3 backdrop-blur-lg">
-          <p className="text-xs md:text-sm tracking-wider text-fuchsia-400 text-shadow-fuchsia">
-            🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 RIGHT-CLICK TO PAN
+        <div className="bg-[rgba(26,0,51,0.9)] border-2 border-fuchsia-500/40 px-6 py-3 backdrop-blur-lg rounded">
+          <p className="text-xs md:text-sm tracking-wider text-fuchsia-400">
+            🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 SELECT A CONTINENT TO FIND TALENT
           </p>
         </div>
       </div>
 
       {/* Continent Selection Buttons */}
-      <div className="absolute right-8 top-1/2 -translate-y-1/2 z-50 space-y-3">
+      <div className="absolute right-6 top-1/2 -translate-y-1/2 z-50 space-y-3">
         {continents.map((continent, idx) => (
           <button
             key={idx}
-            className="block w-full px-4 py-3 border-2 bg-[rgba(26,0,51,0.8)] backdrop-blur-sm text-white font-bold text-sm tracking-wider transition-all duration-300 hover:-translate-x-2 hover:scale-105"
+            className="block w-full px-4 py-3 border-2 bg-[rgba(26,0,51,0.8)] backdrop-blur-sm text-white font-bold text-sm tracking-wider transition-all duration-300 hover:-translate-x-2 hover:scale-105 rounded"
             style={{
               borderColor: continent.color,
               boxShadow: `0 0 10px ${continent.color}44`
@@ -454,23 +507,23 @@ const StarryGlobe = () => {
         ))}
       </div>
 
-      {/* Country List Modal */}
+      {/* country list modal */}
       {showCountryList && selectedContinent && (
-        <div className="modal-overlay">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
           <div 
-            className="card-cyber max-w-lg w-[90vw] animate-zoom-in"
+            className="relative max-w-lg w-[90vw] p-8 rounded-lg"
             style={{
+              background: '#0f0020',
+              borderWidth: 2,
+              borderStyle: 'solid',
               borderColor: selectedContinent.color,
               boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
             }}
           >
             <button
-              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all duration-300 hover:rotate-90"
-              style={{ borderColor: selectedContinent.color, color: selectedContinent.color }}
-              onClick={() => {
-                setShowCountryList(false);
-                setSelectedContinent(null);
-              }}
+              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all duration-300 hover:rotate-90 rounded"
+              style={{ borderColor: selectedContinent.color, color: selectedContinent.color, background: 'transparent' }}
+              onClick={handleCloseAll}
             >
               ✕
             </button>
@@ -484,20 +537,28 @@ const StarryGlobe = () => {
             >
               {selectedContinent.name}
             </h2>
-            <p className="text-fuchsia-300 tracking-widest mb-6">SELECT A COUNTRY</p>
+            <p className="text-fuchsia-300 tracking-widest mb-6 text-sm">SELECT A COUNTRY</p>
 
-            <div className="country-grid mb-4">
+            <div className="grid grid-cols-2 gap-3 mb-4">
               {selectedContinent.countries.map((country) => (
                 <button
-                  key={country}
-                  className="p-4 border-2 bg-transparent text-white font-semibold transition-all duration-300 hover:-translate-y-1"
+                  key={country.name}
+                  className="p-4 border-2 bg-transparent text-white font-semibold transition-all duration-300 hover:-translate-y-1 rounded"
                   style={{ 
-                    borderColor: selectedContinent.color,
-                    background: `${selectedContinent.color}11`
+                    borderColor: `${selectedContinent.color}88`,
+                    background: `${selectedContinent.color}0c`
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = selectedContinent.color;
+                    e.currentTarget.style.background = `${selectedContinent.color}22`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = `${selectedContinent.color}88`;
+                    e.currentTarget.style.background = `${selectedContinent.color}0c`;
                   }}
                   onClick={() => handleCountrySelect(country)}
                 >
-                  {country}
+                  {country.name}
                 </button>
               ))}
             </div>
@@ -505,23 +566,23 @@ const StarryGlobe = () => {
         </div>
       )}
 
-      {/* Search Modal */}
+      {/* search/filter modal */}
       {showSearchModal && selectedContinent && selectedCountry && (
-        <div className="modal-overlay">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
           <div 
-            className="card-cyber max-w-lg w-[90vw] animate-zoom-in"
+            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[90vh] overflow-y-auto"
             style={{
+              background: '#0f0020',
+              borderWidth: 2,
+              borderStyle: 'solid',
               borderColor: selectedContinent.color,
               boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
             }}
           >
             <button
-              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all hover:rotate-90"
-              style={{ borderColor: selectedContinent.color, color: selectedContinent.color }}
-              onClick={() => {
-                setShowSearchModal(false);
-                setSelectedCountry(null);
-              }}
+              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all hover:rotate-90 rounded"
+              style={{ borderColor: selectedContinent.color, color: selectedContinent.color, background: 'transparent' }}
+              onClick={handleCloseAll}
             >
               ✕
             </button>
@@ -535,11 +596,35 @@ const StarryGlobe = () => {
             >
               FIND TALENT
             </h2>
-            <p className="text-fuchsia-300 tracking-widest mb-6">
-              {selectedCountry}, {selectedContinent.name}
+            <p className="text-fuchsia-300 tracking-widest mb-6 text-sm">
+              {selectedCountry.name} · {selectedContinent.name}
             </p>
 
             <div className="space-y-4 mb-6">
+              {/* City / Region picker — pin a specific location */}
+              <div>
+                <label 
+                  className="block mb-2 text-sm tracking-widest font-semibold"
+                  style={{ color: selectedContinent.color }}
+                >
+                  📍 CITY / REGION
+                </label>
+                <select
+                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
+                  style={{ borderColor: `${selectedContinent.color}55` }}
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
+                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
+                >
+                  <option value="">All cities...</option>
+                  {selectedCountry.cities && selectedCountry.cities.map(city => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Role — who are they */}
               <div>
                 <label 
                   className="block mb-2 text-sm tracking-widest font-semibold"
@@ -548,10 +633,12 @@ const StarryGlobe = () => {
                   ROLE
                 </label>
                 <select
-                  className="select-cyber"
-                  style={{ borderColor: selectedContinent.color }}
+                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
+                  style={{ borderColor: `${selectedContinent.color}55` }}
                   value={searchCriteria.role}
                   onChange={(e) => setSearchCriteria({...searchCriteria, role: e.target.value})}
+                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
+                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
                 >
                   <option value="">Select role...</option>
                   {talentRoles.map(role => (
@@ -560,19 +647,21 @@ const StarryGlobe = () => {
                 </select>
               </div>
 
+              {/* Experience — what level are they looking for */}
               <div>
                 <label 
                   className="block mb-2 text-sm tracking-widest font-semibold"
                   style={{ color: selectedContinent.color }}
-                  
                 >
                   EXPERIENCE
                 </label>
                 <select
-                  className="select-cyber"
-                  style={{ borderColor: selectedContinent.color }}
+                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
+                  style={{ borderColor: `${selectedContinent.color}55` }}
                   value={searchCriteria.experience}
                   onChange={(e) => setSearchCriteria({...searchCriteria, experience: e.target.value})}
+                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
+                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
                 >
                   <option value="">Select experience...</option>
                   <option value="emerging">Emerging (0-2 years)</option>
@@ -582,6 +671,7 @@ const StarryGlobe = () => {
                 </select>
               </div>
 
+              {/* Specialty — what are they looking for */}
               <div>
                 <label 
                   className="block mb-2 text-sm tracking-widest font-semibold"
@@ -591,21 +681,103 @@ const StarryGlobe = () => {
                 </label>
                 <input
                   type="text"
-                  className="input-cyber"
-                  style={{ borderColor: selectedContinent.color }}
+                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
+                  style={{ borderColor: `${selectedContinent.color}55` }}
                   placeholder="e.g., Action, Drama, Sci-Fi..."
                   value={searchCriteria.specialty}
                   onChange={(e) => setSearchCriteria({...searchCriteria, specialty: e.target.value})}
+                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
+                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
                 />
               </div>
             </div>
 
             <button
-              className="w-full px-8 py-4 border-none text-white text-xl font-bold tracking-widest transition-all hover:-translate-y-1"
+              className="w-full px-8 py-4 border-none text-white text-xl font-bold tracking-widest transition-all hover:-translate-y-1 rounded"
               style={{ background: `linear-gradient(135deg, ${selectedContinent.color}, ${selectedContinent.color}dd)` }}
               onClick={handleSearch}
             >
               🎬 START SEARCH
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* results modal */}
+      {showResults && selectedContinent && selectedCountry && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
+          <div 
+            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[90vh] overflow-y-auto"
+            style={{
+              background: '#0f0020',
+              borderWidth: 2,
+              borderStyle: 'solid',
+              borderColor: selectedContinent.color,
+              boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
+            }}
+          >
+            <button
+              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all hover:rotate-90 rounded"
+              style={{ borderColor: selectedContinent.color, color: selectedContinent.color, background: 'transparent' }}
+              onClick={handleCloseAll}
+            >
+              ✕
+            </button>
+
+            <h2 
+              className="text-2xl md:text-3xl font-black tracking-wider mb-1"
+              style={{ 
+                color: selectedContinent.color,
+                textShadow: `0 0 16px ${selectedContinent.color}`
+              }}
+            >
+              RESULTS
+            </h2>
+            <p className="text-fuchsia-300 tracking-widest mb-5 text-sm">
+              {selectedCountry.name} {selectedCity && `· ${selectedCity}`} · {selectedContinent.name}
+            </p>
+
+            {/* Result cards */}
+            <div className="space-y-3 mb-6">
+              {mockResults.map((person, i) => (
+                <div 
+                  key={i}
+                  className="flex items-center gap-4 p-4 rounded-lg"
+                  style={{ 
+                    background: `${selectedContinent.color}0a`,
+                    border: `1px solid ${selectedContinent.color}33`
+                  }}
+                >
+                  {/* avatar placeholder */}
+                  <div 
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${selectedContinent.color}88, ${selectedContinent.color}33)` }}
+                  >
+                    {person.name[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-base">{person.name}</div>
+                    <div className="text-xs text-fuchsia-300 tracking-wider">
+                      {person.role} · {person.city}
+                    </div>
+                  </div>
+                  <button
+                    className="px-4 py-2 border-2 bg-transparent font-bold text-xs tracking-widest rounded transition-all hover:scale-105"
+                    style={{ borderColor: selectedContinent.color, color: selectedContinent.color }}
+                  >
+                    VIEW
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Refine search button — go back to filter popup */}
+            <button
+              className="w-full px-6 py-3 border-2 bg-transparent font-bold tracking-widest transition-all hover:-translate-y-1 rounded"
+              style={{ borderColor: selectedContinent.color, color: selectedContinent.color }}
+              onClick={handleRefineSearch}
+            >
+              ← REFINE SEARCH
             </button>
           </div>
         </div>
@@ -615,4 +787,3 @@ const StarryGlobe = () => {
 };
 
 export default StarryGlobe;
-
