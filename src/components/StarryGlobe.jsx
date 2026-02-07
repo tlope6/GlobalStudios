@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
-
+//the overall setup of the app
 const StarryGlobe = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
@@ -803,7 +803,7 @@ const StarryGlobe = () => {
         <div className="text-center mt-2">
           <div className="inline-block bg-[rgba(26,0,51,0.9)] border border-fuchsia-500/40 px-6 py-2 backdrop-blur-lg rounded">
             <p className="text-xs md:text-sm tracking-wider text-fuchsia-400">
-              🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 CLICK A PIN TO FIND TALENT
+              🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 CLICK A COUNTRY TO FIND TALENT
             </p>
           </div>
         </div>
@@ -837,88 +837,6 @@ const StarryGlobe = () => {
           📍 {hoveredCountry}
         </div>
       )}
-
-      {/* Continent Selection Buttons — commented out, using pins instead
-      <div className="absolute right-6 top-1/2 -translate-y-1/2 z-50 space-y-3">
-        {continents.map((continent, idx) => (
-          <button
-            key={idx}
-            className="block w-full px-4 py-3 border-2 bg-[rgba(26,0,51,0.8)] backdrop-blur-sm text-white font-bold text-sm tracking-wider transition-all duration-300 hover:-translate-x-2 hover:scale-105 rounded"
-            style={{
-              borderColor: continent.color,
-              boxShadow: `0 0 10px ${continent.color}44`
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.boxShadow = `0 0 20px ${continent.color}88`;
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.boxShadow = `0 0 10px ${continent.color}44`;
-            }}
-            onClick={() => handleContinentSelect(continent)}
-          >
-            {continent.name}
-          </button>
-        ))}
-      </div> */}
-
-      {/* country list modal — commented out, clicking pins goes straight to search
-      {showCountryList && selectedContinent && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
-          <div 
-            className="relative max-w-lg w-[90vw] p-8 rounded-lg"
-            style={{
-              background: '#0f0020',
-              borderWidth: 2,
-              borderStyle: 'solid',
-              borderColor: selectedContinent.color,
-              boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
-            }}
-          >
-            <button
-              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all duration-300 hover:rotate-90 rounded"
-              style={{ borderColor: selectedContinent.color, color: selectedContinent.color, background: 'transparent' }}
-              onClick={handleCloseAll}
-            >
-              ✕
-            </button>
-
-            <h2 
-              className="text-3xl md:text-4xl font-black tracking-wider mb-2"
-              style={{ 
-                color: selectedContinent.color,
-                textShadow: `0 0 20px ${selectedContinent.color}`
-              }}
-            >
-              {selectedContinent.name}
-            </h2>
-            <p className="text-fuchsia-300 tracking-widest mb-6 text-sm">SELECT A COUNTRY</p>
-
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {selectedContinent.countries.map((country) => (
-                <button
-                  key={country.name}
-                  className="p-4 border-2 bg-transparent text-white font-semibold transition-all duration-300 hover:-translate-y-1 rounded"
-                  style={{ 
-                    borderColor: `${selectedContinent.color}88`,
-                    background: `${selectedContinent.color}0c`
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = selectedContinent.color;
-                    e.currentTarget.style.background = `${selectedContinent.color}22`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = `${selectedContinent.color}88`;
-                    e.currentTarget.style.background = `${selectedContinent.color}0c`;
-                  }}
-                  onClick={() => handleCountrySelect(country)}
-                >
-                  {country.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )} */}
 
       {/* search/filter modal */}
       {showSearchModal && selectedContinent && selectedCountry && (
