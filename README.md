@@ -1,70 +1,62 @@
-# Getting Started with Create React App
+# 🌍 Global Studios
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**Global Studios** is an interactive **3D globe platform** built with **React**, **Three.js**, **SQL**, and **Supabase** that lets you **discover and connect with entertainment industry talent worldwide**.
 
-## Available Scripts
+> ✨ Spin the globe, click countries, and filter talent by **city**, **role**, **experience level**, and **specialty/genre** — all wrapped in a **neon magenta/purple UI** with a **starfield background**.
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## 🚀 Key Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Interactive 3D Globe** — Rotate, zoom, and explore a fully rendered Earth with **country borders** drawn from **GeoJSON**
+- **Country Pins** — Clickable pins for every supported country, **color-coded by continent**
+- **Hover Highlighting** — Borders **glow on hover**; pins **scale up** for crisp visual feedback
+- **Talent Search** — Click any country to filter talent by:
+  - **City**
+  - **Role**
+  - **Experience Level**
+  - **Specialty / Genre**
+- **Auth Flow** — **Sign in / create profile modal** gates search access, then **resumes where the user left off**
+- **Colorful UI** — **Neon magenta/purple aesthetic**, glowing borders, animated modals, and a **starfield background**
+- **Responsive** — Adapts to any screen size with **orbit controls locked** to prevent panning
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## 🎭 Supported Roles
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+**Actor/Actress** · **Director** · **Producer** · **Screenwriter** · **Cinematographer** · **Editor** · **Production Designer** · **Casting Director** · **Talent Manager** · **Agent**
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🗺️ Coverage
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+| Continent | Countries |
+|----------|-----------|
+| **North America** | United States, Canada, Mexico |
+| **South America** | Brazil, Argentina, Colombia, Chile |
+| **Europe** | United Kingdom, France, Germany, Spain, Italy |
+| **Africa** | South Africa, Nigeria, Kenya, Egypt |
+| **Asia** | India, China, Japan, South Korea, Thailand |
+| **Oceania** | Australia, New Zealand, Fiji |
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+---
 
-### `npm run eject`
+## 🧱 Tech Stack
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+- **Frontend:** React + Three.js  
+- **Database:** SQL (via Supabase / Postgres)  
+- **Auth & Backend:** Supabase  
+- **Mapping Data:** GeoJSON (country borders)  
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 🛠️ Local Development
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+> Update these commands to match your actual setup (Vite / Next / CRA). These are the most common defaults.
 
-## Learn More
+```bash
+# 1) Install dependencies
+npm install
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+# 2) Start dev server
+npm run dev
