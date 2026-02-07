@@ -85,9 +85,7 @@
   }
 }
 
-/* ==========================================
-   CUSTOM COMPONENTS
-   ========================================== */
+/* customizing the components like the glow and all that */
 @layer components {
   /* Cyberpunk button base */
   .btn-cyber {
@@ -143,9 +141,9 @@
   }
 }
 
-/* ==========================================
-   ANIMATIONS & KEYFRAMES
-   ========================================== */
+
+
+/* animation for the stars overall */
 
 /* Star twinkle animation */
 @keyframes twinkle {
@@ -388,9 +386,8 @@
   animation: float 3s ease-in-out infinite;
 }
 
-/* ==========================================
-   SCROLLBAR STYLING
-   ========================================== */
+
+/* scrollbar styling of it */
 ::-webkit-scrollbar {
   width: 12px;
 }
@@ -408,9 +405,7 @@
   background: linear-gradient(180deg, #ff1aff, #b066f7);
 }
 
-/* ==========================================
-   SELECTION STYLING
-   ========================================== */
+/* selection styling */
 ::selection {
   background: rgba(255, 0, 255, 0.3);
   color: #fff;
@@ -421,9 +416,9 @@
   color: #fff;
 }
 
-/* ==========================================
-   GLOBAL STYLES
-   ========================================== */
+
+
+/* global styles */
 * {
   margin: 0;
   padding: 0;
@@ -437,11 +432,9 @@ body {
   overflow-x: hidden;
 }
 
-/* ==========================================
-   SPECIFIC COMPONENT STYLES
-   ========================================== */
 
-/* Star base style */
+/* specifc component styles */
+
 .star {
   position: absolute;
   border-radius: 50%;
@@ -524,9 +517,9 @@ body {
   animation: border-flow 3s linear infinite;
 }
 
-/* ==========================================
-   RESPONSIVE UTILITIES
-   ========================================== */
+
+
+/* responsive utilities */
 @media (max-width: 768px) {
   .text-shadow-neon {
     text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 20px currentColor;
@@ -542,6 +535,8 @@ body {
 /* ==========================================
    PERFORMANCE OPTIMIZATIONS
    ========================================== */
+
+/* performance optimizations */
 .will-change-transform {
   will-change: transform;
 }
@@ -556,9 +551,7 @@ body {
   perspective: 1000px;
 }
 
-/* ==========================================
-   ACCESSIBILITY
-   ========================================== */
+/* accessibility for the overall setup */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -580,9 +573,7 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-/* ==========================================
-   PRINT STYLES
-   ========================================== */
+/* Printing style of it */
 @media print {
   .star,
   .modal-overlay,
@@ -593,6 +584,6 @@ button:focus-visible {
 
   body {
     background: white;
-    color: black;
+    color: white;
   }
 }

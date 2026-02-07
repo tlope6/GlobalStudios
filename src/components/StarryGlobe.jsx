@@ -3,25 +3,28 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 
-
 const StarryGlobe = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const globeRef = useRef(null);
+  //variables to handle hover over country part
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const mouseRef = useRef(new THREE.Vector2());
+  const countryMeshesRef = useRef([]);
   
   const [selectedContinent, setSelectedContinent] = useState(null);
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [showCountryList, setShowCountryList] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+
+  const[hoveredCountry, setHoveredCountry] = useState(null);
   const [searchCriteria, setSearchCriteria] = useState({
     role: '',
     experience: '',
     specialty: ''
   });
 
-  // ==========================================
-  // DATA
-  // ==========================================
+  //data for the overall continents
   const continents = [
     {
       name: 'North America',
@@ -55,6 +58,8 @@ const StarryGlobe = () => {
     }
   ];
 
+
+  //categories of possible roles a person could be while using this
   const talentRoles = [
     'Actor/Actress', 'Director', 'Producer', 'Screenwriter',
     'Cinematographer', 'Editor', 'Production Designer',
@@ -92,6 +97,11 @@ const StarryGlobe = () => {
     controls.rotateSpeed = 0.5;
     controls.minDistance = 2;
     controls.maxDistance = 5;
+    
+    //to lock the globe in its place 
+    controls.enablePan = false; //help not move the globe too much 
+    controls.target.set(0, 0, 0);
+    controls.update()
 
     
     const starsGeometry = new THREE.BufferGeometry();
@@ -124,9 +134,7 @@ const StarryGlobe = () => {
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     scene.add(stars);
 
-    // ==========================================
-    // CREATE GLOBE SPHERE
-    // ==========================================
+    //creating the overall globe
     const globeGeometry = new THREE.SphereGeometry(1, 64, 64);
     
     // Globe material with cyberpunk colors
@@ -143,9 +151,7 @@ const StarryGlobe = () => {
     globeRef.current = globe;
     scene.add(globe);
 
-    // ==========================================
-    // WIREFRAME GRID
-    // ==========================================
+    //wireframing of the globe
     const wireframeGeometry = new THREE.SphereGeometry(1.01, 32, 32);
     const wireframeMaterial = new THREE.MeshBasicMaterial({
       color: 0xff00ff,
@@ -156,9 +162,7 @@ const StarryGlobe = () => {
     const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
     scene.add(wireframe);
 
-    // ==========================================
-    // LIGHTING
-    // ==========================================
+    //setting up the lighting for the overall apperance
     const ambientLight = new THREE.AmbientLight(0xff00ff, 0.5);
     scene.add(ambientLight);
 
@@ -170,33 +174,86 @@ const StarryGlobe = () => {
     pointLight2.position.set(-5, -5, -5);
     scene.add(pointLight2);
 
-    // ==========================================
-    // LOAD GEOJSON DATA
-    // ==========================================
-    fetch('/geojson/ne_110m_land.json')
+    //loading the geojson data for the 3d globe to make it accurate
+    const countryGroup = new THREE.Group();
+    scene.add(countryGroup);
+
+    fetch('/geojson/countries.json')
       .then(response => response.json())
       .then(data => {
-        const landGroup = new THREE.Group();
-
-        data.features.forEach(feature => {
+        console.log('GeoJSON loaded:', data.features.length, 'countries');
+        
+        data.features.forEach((feature, index) => {
+          const countryName = 
+          feature.properties.ADMIN || 
+          feature.properties.NAME || 
+          feature.properties.name ||
+          feature.properties.NAME_LONG ||
+          feature.properties.SOVEREIGNT || 
+          `Country ${index}`;
+          
+          
           if (feature.geometry.type === 'Polygon') {
-            drawPolygon(feature.geometry.coordinates, landGroup);
+            drawCountry(feature.geometry.coordinates, countryName, countryGroup);
           } else if (feature.geometry.type === 'MultiPolygon') {
             feature.geometry.coordinates.forEach(polygon => {
-              drawPolygon(polygon, landGroup);
+              drawCountry(polygon, countryName, countryGroup);
             });
           }
         });
-
-        scene.add(landGroup);
       })
       .catch(error => {
-        console.log('GeoJSON not loaded, using wireframe only:', error);
+        console.log('GeoJSON not loaded:', error);
+        // Fallback to land data
+        fetch('/geojson/ne_110m_land.json')
+          .then(response => response.json())
+          .then(data => {
+            data.features.forEach((feature, index) => {
+              if (feature.geometry.type === 'Polygon') {
+                drawCountry(feature.geometry.coordinates, `Land ${index}`, countryGroup);
+              } else if (feature.geometry.type === 'MultiPolygon') {
+                feature.geometry.coordinates.forEach(polygon => {
+                  drawCountry(polygon, `Land ${index}`, countryGroup);
+                });
+              }
+            });
+          })
+          .catch(err => console.log('No GeoJSON available:', err));
       });
 
-    // ==========================================
-    // DRAW POLYGON FROM GEOJSON
-    // ==========================================
+      //adding the element to hover over the country and light it up
+      function drawCountry(coordinates, countryName, group) {
+        coordinates.forEach(ring => {
+          const points = [];
+          
+          ring.forEach(([lon, lat]) => {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            
+            const x = -1.01 * Math.sin(phi) * Math.cos(theta);
+            const y = 1.01 * Math.cos(phi);
+            const z = 1.01 * Math.sin(phi) * Math.sin(theta);
+            
+            points.push(new THREE.Vector3(x, y, z));
+          });
+
+          if (points.length > 2) {
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            const lineMaterial = new THREE.LineBasicMaterial({
+              color: 0x00ffff,
+              transparent: true,
+              opacity: 0.5,
+              linewidth: 1
+            });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            line.userData = { countryName, isCountry: true };
+            group.add(line);
+            countryMeshesRef.current.push(line);
+          }
+        });
+      }
+
+    //drawing a polygon from  geojson
     function drawPolygon(coordinates, group) {
       coordinates.forEach(ring => {
         const points = [];
@@ -226,9 +283,47 @@ const StarryGlobe = () => {
       });
     }
 
-    // ==========================================
-    // ANIMATION LOOP
-    // ==========================================
+    //handle the mouse movement
+    const handleMouseMove = (e) => {
+      //updating mouse position for raycasting
+      mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1; 
+      mouseRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    };
+
+    //adding an event listner for it 
+    window.addEventListener('mousemove', handleMouseMove);
+
+    function checkHover() {
+      raycasterRef.current.setFromCamera(mouseRef.current, camera);
+      const intersects = raycasterRef.current.intersectObjects(countryMeshesRef.current);
+
+
+      //reset the countries to default
+      countryMeshesRef.current.forEach(mesh => {
+        mesh.material.color.setHex(0x00ffff); //cyan like color
+        mesh.material.opacity = 0.5;
+      });
+
+      //if hovering over the a country
+      if (intersects.length > 0) {
+        const hoveredMesh = intersects[0].object;
+        if (hoveredMesh.userData.isCountry) {
+          // make the country glow
+          hoveredMesh.material.color.setHex(0xff00ff); //magenta color
+          hoveredMesh.material.opacity = 1.0; //Full brightness to show that its selected 
+          
+
+          setHoveredCountry(hoveredMesh.userData.countryName);
+          renderer.domElement.style.cursor = 'pointer';
+
+        }
+      } else {
+        setHoveredCountry(null);
+        renderer.domElement.style.cursor = 'grab';
+      }
+    }
+
+   //animation loop
     let animationId;
     const animate = () => {
       animationId = requestAnimationFrame(animate);
@@ -240,15 +335,16 @@ const StarryGlobe = () => {
       
       // Twinkle stars
       stars.rotation.y += 0.0002;
+
+      // calling the hover function
+      checkHover();
       
       controls.update();
       renderer.render(scene, camera);
     };
     animate();
 
-    // ==========================================
-    // HANDLE RESIZE
-    // ==========================================
+    //adjusting the sizing based on where the user is looking at it
     const handleResize = () => {
       const width = currentMount.clientWidth;
       const height = currentMount.clientHeight;
@@ -259,11 +355,11 @@ const StarryGlobe = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // ==========================================
-    // CLEANUP
-    // ==========================================
+    //cleaning up the animation to make sure its properly working out
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', handleMouseMove);
+
       cancelAnimationFrame(animationId);
       currentMount.removeChild(renderer.domElement);
       
@@ -278,9 +374,7 @@ const StarryGlobe = () => {
     };
   }, []);
 
-  // ==========================================
-  // HANDLERS
-  // ==========================================
+  //handlers to see the continent and corporating with it
   const handleContinentSelect = (continent) => {
     setSelectedContinent(continent);
     setShowCountryList(true);
@@ -303,7 +397,8 @@ const StarryGlobe = () => {
     <div className="relative w-screen h-screen overflow-hidden">
       {/* Three.js Canvas */}
       <div ref={mountRef} className="absolute inset-0 z-0" style={{ width: '100w', height: '100vh', }} />
-
+      
+      
       {/* Header */}
       <header className="absolute top-8 left-1/2 -translate-x-1/2 text-center z-50 w-full px-4">
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-[0.3em] mb-3 text-white text-shadow-neon-strong">
@@ -313,6 +408,19 @@ const StarryGlobe = () => {
           GLOBAL TALENT NETWORK
         </p>
       </header>
+
+      {/* hovered country attribution */}
+
+      {hoveredCountry && (
+        <div className="absolute top-32 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <div className="px-6 py-3 bg-gradient-to-r from-fuchsia-500/90 to-cyan-500/90 border-2 border-white/50 backdrop-blur md rounded-full">
+        <p className="text-white font-bold tracking-wider test-sm md:text-base">
+          📍{hoveredCountry}
+        </p>
+        
+        </div>
+        </div>
+      )}
 
       {/* Controls Info */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
@@ -456,6 +564,7 @@ const StarryGlobe = () => {
                 <label 
                   className="block mb-2 text-sm tracking-widest font-semibold"
                   style={{ color: selectedContinent.color }}
+                  
                 >
                   EXPERIENCE
                 </label>
