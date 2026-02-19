@@ -131,13 +131,11 @@ const StarryGlobe = () => {
     pinMeshesRef.current=pArr;
 
     const cGrp=new THREE.Group();scene.add(cGrp);
-    fetch('/geojson/countries.json').then(r=>r.json()).then(d=>{
+    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson').then(r=>r.json()).then(d=>{
       d.features.forEach((f,i)=>{const nm=f.properties.ADMIN||f.properties.NAME||f.properties.name||f.properties.NAME_LONG||f.properties.SOVEREIGNT||`C${i}`;
         if(f.geometry.type==='Polygon')drawC(f.geometry.coordinates,nm,cGrp);
         else if(f.geometry.type==='MultiPolygon')f.geometry.coordinates.forEach(p=>drawC(p,nm,cGrp));});
-    }).catch(()=>{fetch('/geojson/ne_110m_land.json').then(r=>r.json()).then(d=>{d.features.forEach((f,i)=>{
-      if(f.geometry.type==='Polygon')drawC(f.geometry.coordinates,`L${i}`,cGrp);
-      else if(f.geometry.type==='MultiPolygon')f.geometry.coordinates.forEach(p=>drawC(p,`L${i}`,cGrp));});}).catch(()=>{});});
+    }).catch((err)=>{console.error('GeoJSON load failed:',err);});
 
     function drawC(co,nm,gr){co.forEach(ring=>{const pts=[];ring.forEach(([lo,la])=>{const p=(90-la)*(Math.PI/180),t=(lo+180)*(Math.PI/180);
       pts.push(new THREE.Vector3(-1.015*Math.sin(p)*Math.cos(t),1.015*Math.cos(p),1.015*Math.sin(p)*Math.sin(t)));});
@@ -191,7 +189,6 @@ const StarryGlobe = () => {
   const panelOpen = showSearch || showResults;
   const ac = selectedContinent?.color || '#ff00ff';
 
-  //selecting styles
   const selStyle = { width:'100%', padding:'12px', background:'#0a0018', border:`2px solid ${ac}44`, borderRadius:'6px', color:'white', outline:'none', fontSize:'14px' };
   const lblStyle = { display:'block', marginBottom:'8px', fontSize:'11px', letterSpacing:'3px', fontWeight:700, color:ac };
 
@@ -231,7 +228,7 @@ const StarryGlobe = () => {
         )}
       </div>
 
-      {/* set up for side panel */}
+      {/* side panel */}
       {panelOpen && (
         <Portal>
           <div style={{ position:'fixed', inset:0, zIndex:9999, pointerEvents:'none' }}>
@@ -296,14 +293,14 @@ const StarryGlobe = () => {
         </Portal>
       )}
 
-      {/*  PROFILE */}
+      {/* profile */}
       {profile && (
         <Portal>
           <ProfileModal profile={profile} color={ac} onClose={()=>setProfile(null)} />
         </Portal>
       )}
 
-      {/*  ANALYTICS  */}
+      {/* analytics */}
       {showDashboard && (
         <Portal>
           <AnalyticsDashboard isOpen={showDashboard} onClose={()=>setShowDashboard(false)} />
