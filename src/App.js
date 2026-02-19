@@ -1,7 +1,6 @@
-import React from 'react';
 import StarryGlobe from './components/StarryGlobe';
 import './App.css';
-import './globe.css'
+import './globe.css';
 
 
 function App() {

@@ -1,1060 +1,512 @@
 import React, { useEffect, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import AnalyticsDashboard from './Dashboard';
+import ProfileModal from './ProfileModal';
+import { searchTalent } from './api/supabaseData';
 
-//the overall setup of the app
+//using react portal to be able to warp the whole layout better and work better
+const Portal = ({ children }) => {
+  return ReactDOM.createPortal(children, document.body);
+};
+
 const StarryGlobe = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const globeRef = useRef(null);
-  // variables to handle hover over country part
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
   const countryMeshesRef = useRef([]);
   const countryBordersRef = useRef(new Map());
-  // ref to store pin meshes for raycasting
   const pinMeshesRef = useRef([]);
 
-  //variables to assist with selecting on the map
   const [selectedContinent, setSelectedContinent] = useState(null);
   const [selectedCountry, setSelectedCountry] = useState(null);
-  const [showCountryList, setShowCountryList] = useState(false);
-  const [showSearchModal, setShowSearchModal] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  const [showSearchPanel, setShowSearchPanel] = useState(false);
+  const [showResultsPanel, setShowResultsPanel] = useState(false);
   const [selectedCity, setSelectedCity] = useState('');
-
-  //assisting with being able to click on the actual country
+  const [showDashboard, setShowDashboard] = useState(false);
   const [hoveredCountry, setHoveredCountry] = useState(null);
-  const [searchCriteria, setSearchCriteria] = useState({
-    role: '',
-    experience: '',
-    specialty: ''
-  });
+  const [searchCriteria, setSearchCriteria] = useState({ role: '', experience: '', specialty: '' });
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [panelAnimated, setPanelAnimated] = useState(false);
 
-  //data for the overall continents
   const continents = [
-    {
-      name: 'North America',
-      color: '#ff00ff',
-      countries: [
-        { name: 'United States', cities: ['Los Angeles', 'New York', 'Atlanta', 'Chicago'] },
-        { name: 'Canada', cities: ['Toronto', 'Vancouver', 'Montreal'] },
-        { name: 'Mexico', cities: ['Mexico City', 'Guadalajara'] }
-      ]
-    },
-    {
-      name: 'South America',
-      color: '#ff006e',
-      countries: [
-        { name: 'Brazil', cities: ['São Paulo', 'Rio de Janeiro'] },
-        { name: 'Argentina', cities: ['Buenos Aires'] },
-        { name: 'Colombia', cities: ['Bogotá', 'Medellín'] },
-        { name: 'Chile', cities: ['Santiago'] }
-      ]
-    },
-    {
-      name: 'Europe',
-      color: '#a855f7',
-      countries: [
-        { name: 'United Kingdom', cities: ['London', 'Manchester'] },
-        { name: 'France', cities: ['Paris', 'Lyon'] },
-        { name: 'Germany', cities: ['Berlin', 'Munich'] },
-        { name: 'Spain', cities: ['Madrid', 'Barcelona'] },
-        { name: 'Italy', cities: ['Rome', 'Milan'] }
-      ]
-    },
-    {
-      name: 'Africa',
-      color: '#e879f9',
-      countries: [
-        { name: 'South Africa', cities: ['Cape Town', 'Johannesburg'] },
-        { name: 'Nigeria', cities: ['Lagos', 'Abuja'] },
-        { name: 'Kenya', cities: ['Nairobi'] },
-        { name: 'Egypt', cities: ['Cairo'] }
-      ]
-    },
-    {
-      name: 'Asia',
-      color: '#7c3aed',
-      countries: [
-        { name: 'India', cities: ['Mumbai', 'Delhi', 'Bangalore'] },
-        { name: 'China', cities: ['Beijing', 'Shanghai'] },
-        { name: 'Japan', cities: ['Tokyo', 'Osaka'] },
-        { name: 'South Korea', cities: ['Seoul'] },
-        { name: 'Thailand', cities: ['Bangkok'] }
-      ]
-    },
-    {
-      name: 'Oceania',
-      color: '#f0abfc',
-      countries: [
-        { name: 'Australia', cities: ['Sydney', 'Melbourne', 'Brisbane'] },
-        { name: 'New Zealand', cities: ['Auckland', 'Wellington'] },
-        { name: 'Fiji', cities: ['Suva'] }
-      ]
-    }
+    { name: 'North America', color: '#ff00ff', countries: [
+      { name: 'United States', cities: ['Los Angeles', 'New York', 'Atlanta', 'Chicago'] },
+      { name: 'Canada', cities: ['Toronto', 'Vancouver', 'Montreal'] },
+      { name: 'Mexico', cities: ['Mexico City', 'Guadalajara'] }
+    ]},
+    { name: 'South America', color: '#ff006e', countries: [
+      { name: 'Brazil', cities: ['São Paulo', 'Rio de Janeiro'] },
+      { name: 'Argentina', cities: ['Buenos Aires'] },
+      { name: 'Colombia', cities: ['Bogotá', 'Medellín'] },
+      { name: 'Chile', cities: ['Santiago'] }
+    ]},
+    { name: 'Europe', color: '#a855f7', countries: [
+      { name: 'United Kingdom', cities: ['London', 'Manchester'] },
+      { name: 'France', cities: ['Paris', 'Lyon'] },
+      { name: 'Germany', cities: ['Berlin', 'Munich'] },
+      { name: 'Spain', cities: ['Madrid', 'Barcelona'] },
+      { name: 'Italy', cities: ['Rome', 'Milan'] }
+    ]},
+    { name: 'Africa', color: '#e879f9', countries: [
+      { name: 'South Africa', cities: ['Cape Town', 'Johannesburg'] },
+      { name: 'Nigeria', cities: ['Lagos', 'Abuja'] },
+      { name: 'Kenya', cities: ['Nairobi'] },
+      { name: 'Egypt', cities: ['Cairo'] }
+    ]},
+    { name: 'Asia', color: '#7c3aed', countries: [
+      { name: 'India', cities: ['Mumbai', 'Delhi', 'Bangalore'] },
+      { name: 'China', cities: ['Beijing', 'Shanghai'] },
+      { name: 'Japan', cities: ['Tokyo', 'Osaka'] },
+      { name: 'South Korea', cities: ['Seoul'] },
+      { name: 'Thailand', cities: ['Bangkok'] }
+    ]},
+    { name: 'Oceania', color: '#f0abfc', countries: [
+      { name: 'Australia', cities: ['Sydney', 'Melbourne', 'Brisbane'] },
+      { name: 'New Zealand', cities: ['Auckland', 'Wellington'] },
+      { name: 'Fiji', cities: ['Suva'] }
+    ]},
   ];
 
-
-  //categories of possible roles a person could be while using this
   const talentRoles = [
     'Actor/Actress', 'Director', 'Producer', 'Screenwriter',
     'Cinematographer', 'Editor', 'Production Designer',
     'Casting Director', 'Talent Manager', 'Agent'
   ];
 
-  // three.js file founded on line to be able to incoporate the 3D globe portion of it
+  // ── PANEL OPEN / CLOSE ──
+  const openSearchPanel = (continent, country) => {
+    setSelectedContinent(continent);
+    setSelectedCountry(country);
+    setSelectedCity('');
+    setShowResultsPanel(false);
+    setSearchResults([]);
+    setSelectedProfile(null);
+    setSearchCriteria({ role: '', experience: '', specialty: '' });
+    setShowSearchPanel(true);
+    requestAnimationFrame(() => setPanelAnimated(true));
+  };
+
+  const closeAllPanels = () => {
+    setPanelAnimated(false);
+    setTimeout(() => {
+      setShowSearchPanel(false);
+      setShowResultsPanel(false);
+      setSelectedContinent(null);
+      setSelectedCountry(null);
+      setSelectedCity('');
+      setSearchCriteria({ role: '', experience: '', specialty: '' });
+      setSearchResults([]);
+      setSelectedProfile(null);
+    }, 300);
+  };
+
+  // ── THREE.JS ──
   useEffect(() => {
     if (!mountRef.current) return;
-
     const currentMount = mountRef.current;
-    const w = currentMount.clientWidth;
-    const h = currentMount.clientHeight;
+    const w = currentMount.clientWidth, h = currentMount.clientHeight;
 
-    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0014);
     scene.fog = new THREE.FogExp2(0x0a0014, 0.15);
     sceneRef.current = scene;
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
     camera.position.z = 3;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(w, h);
     renderer.setPixelRatio(window.devicePixelRatio);
     currentMount.appendChild(renderer.domElement);
 
-    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.rotateSpeed = 0.5;
-    controls.minDistance = 2;
-    controls.maxDistance = 5;
-    
-    
-    //to lock the globe in its place 
-    controls.enablePan = false; //help not move the globe too much 
-    controls.target.set(0, 0, 0);
-    controls.update();
+    controls.enableDamping = true; controls.dampingFactor = 0.05; controls.rotateSpeed = 0.5;
+    controls.minDistance = 2; controls.maxDistance = 5; controls.enablePan = false;
+    controls.target.set(0, 0, 0); controls.update();
 
-    
-    const starsGeometry = new THREE.BufferGeometry();
-    const starsMaterial = new THREE.PointsMaterial({
-      size: 0.02,
-      vertexColors: true
-    });
-
-    const starsVertices = [];
-    const starsColors = [];
-    const colors = [
-      new THREE.Color(0xff00ff), // Magenta
-      new THREE.Color(0xff006e), // Pink
-      new THREE.Color(0xa855f7), // Purple
-      new THREE.Color(0xf0abfc)  // Light pink
-    ];
-
+    // Stars
+    const starsGeo = new THREE.BufferGeometry();
+    const starsMat = new THREE.PointsMaterial({ size: 0.02, vertexColors: true });
+    const sv = [], sc2 = [];
+    const sColors = [new THREE.Color(0xff00ff), new THREE.Color(0xff006e), new THREE.Color(0xa855f7), new THREE.Color(0xf0abfc)];
     for (let i = 0; i < 3000; i++) {
-      const x = (Math.random() - 0.5) * 50;
-      const y = (Math.random() - 0.5) * 50;
-      const z = (Math.random() - 0.5) * 50;
-      starsVertices.push(x, y, z);
-
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      starsColors.push(color.r, color.g, color.b);
+      sv.push((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*50);
+      const c = sColors[Math.floor(Math.random()*sColors.length)]; sc2.push(c.r, c.g, c.b);
     }
+    starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(sv, 3));
+    starsGeo.setAttribute('color', new THREE.Float32BufferAttribute(sc2, 3));
+    const stars = new THREE.Points(starsGeo, starsMat); scene.add(stars);
 
-    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
-    const stars = new THREE.Points(starsGeometry, starsMaterial);
-    scene.add(stars);
+    const globeGeo = new THREE.SphereGeometry(1, 64, 64);
+    const globeMat = new THREE.MeshPhongMaterial({ color: 0x1a0033, emissive: 0x0a0014, emissiveIntensity: 0.5, shininess: 30, transparent: true, opacity: 0.95 });
+    const globe = new THREE.Mesh(globeGeo, globeMat); globeRef.current = globe; scene.add(globe);
 
-    //creating the overall globe
-    const globeGeometry = new THREE.SphereGeometry(1, 64, 64);
-    
-    // Globe material with cyberpunk colors
-    const globeMaterial = new THREE.MeshPhongMaterial({
-      color: 0x1a0033,
-      emissive: 0x0a0014,
-      emissiveIntensity: 0.5,
-      shininess: 30,
-      transparent: true,
-      opacity: 0.95
-    });
-    
-    const globe = new THREE.Mesh(globeGeometry, globeMaterial);
-    globeRef.current = globe;
-    scene.add(globe);
+    const wfGeo = new THREE.SphereGeometry(1.01, 32, 32);
+    const wfMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true, transparent: true, opacity: 0.3 });
+    scene.add(new THREE.Mesh(wfGeo, wfMat));
 
-    //wireframing of the globe
-    const wireframeGeometry = new THREE.SphereGeometry(1.01, 32, 32);
-    const wireframeMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff00ff,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.3
-    });
-    const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
-    scene.add(wireframe);
+    scene.add(new THREE.AmbientLight(0xff00ff, 0.5));
+    const pl1 = new THREE.PointLight(0xff00ff, 1, 100); pl1.position.set(5,5,5); scene.add(pl1);
+    const pl2 = new THREE.PointLight(0xa855f7, 0.8, 100); pl2.position.set(-5,-5,-5); scene.add(pl2);
 
-    //setting up the lighting for the overall apperance
-    const ambientLight = new THREE.AmbientLight(0xff00ff, 0.5);
-    scene.add(ambientLight);
-
-    const pointLight1 = new THREE.PointLight(0xff00ff, 1, 100);
-    pointLight1.position.set(5, 5, 5);
-    scene.add(pointLight1);
-
-    const pointLight2 = new THREE.PointLight(0xa855f7, 0.8, 100);
-    pointLight2.position.set(-5, -5, -5);
-    scene.add(pointLight2);
-
-    // Country pin locations (lat, lon) — now placed AFTER globe is created
+    // Pins
     const countryPins = [
-      // North America
-      { name: 'United States', lat: 39.8, lon: -98.5, continent: 'North America' },
-      { name: 'Canada', lat: 56.1, lon: -106.3, continent: 'North America' },
-      { name: 'Mexico', lat: 23.6, lon: -102.5, continent: 'North America' },
-      // South America
-      { name: 'Brazil', lat: -14.2, lon: -51.9, continent: 'South America' },
-      { name: 'Argentina', lat: -38.4, lon: -63.6, continent: 'South America' },
-      { name: 'Colombia', lat: 4.5, lon: -74.3, continent: 'South America' },
-      { name: 'Chile', lat: -35.7, lon: -71.5, continent: 'South America' },
-      // Europe
-      { name: 'United Kingdom', lat: 55.4, lon: -3.4, continent: 'Europe' },
-      { name: 'France', lat: 46.2, lon: 2.2, continent: 'Europe' },
-      { name: 'Germany', lat: 51.2, lon: 10.4, continent: 'Europe' },
-      { name: 'Spain', lat: 40.5, lon: -3.7, continent: 'Europe' },
-      { name: 'Italy', lat: 41.9, lon: 12.6, continent: 'Europe' },
-      // Africa
-      { name: 'South Africa', lat: -30.6, lon: 22.9, continent: 'Africa' },
-      { name: 'Nigeria', lat: 9.1, lon: 8.7, continent: 'Africa' },
-      { name: 'Kenya', lat: -0.02, lon: 37.9, continent: 'Africa' },
-      { name: 'Egypt', lat: 26.8, lon: 30.8, continent: 'Africa' },
-      // Asia
-      { name: 'India', lat: 20.6, lon: 79.0, continent: 'Asia' },
-      { name: 'China', lat: 35.9, lon: 104.2, continent: 'Asia' },
-      { name: 'Japan', lat: 36.2, lon: 138.3, continent: 'Asia' },
-      { name: 'South Korea', lat: 35.9, lon: 127.8, continent: 'Asia' },
-      { name: 'Thailand', lat: 15.9, lon: 100.9, continent: 'Asia' },
-      // Oceania
-      { name: 'Australia', lat: -25.3, lon: 133.8, continent: 'Oceania' },
-      { name: 'New Zealand', lat: -40.9, lon: 174.9, continent: 'Oceania' },
-      { name: 'Fiji', lat: -17.7, lon: 178.0, continent: 'Oceania' },
+      { name:'United States',lat:39.8,lon:-98.5,continent:'North America' },{ name:'Canada',lat:56.1,lon:-106.3,continent:'North America' },
+      { name:'Mexico',lat:23.6,lon:-102.5,continent:'North America' },{ name:'Brazil',lat:-14.2,lon:-51.9,continent:'South America' },
+      { name:'Argentina',lat:-38.4,lon:-63.6,continent:'South America' },{ name:'Colombia',lat:4.5,lon:-74.3,continent:'South America' },
+      { name:'Chile',lat:-35.7,lon:-71.5,continent:'South America' },{ name:'United Kingdom',lat:55.4,lon:-3.4,continent:'Europe' },
+      { name:'France',lat:46.2,lon:2.2,continent:'Europe' },{ name:'Germany',lat:51.2,lon:10.4,continent:'Europe' },
+      { name:'Spain',lat:40.5,lon:-3.7,continent:'Europe' },{ name:'Italy',lat:41.9,lon:12.6,continent:'Europe' },
+      { name:'South Africa',lat:-30.6,lon:22.9,continent:'Africa' },{ name:'Nigeria',lat:9.1,lon:8.7,continent:'Africa' },
+      { name:'Kenya',lat:-0.02,lon:37.9,continent:'Africa' },{ name:'Egypt',lat:26.8,lon:30.8,continent:'Africa' },
+      { name:'India',lat:20.6,lon:79.0,continent:'Asia' },{ name:'China',lat:35.9,lon:104.2,continent:'Asia' },
+      { name:'Japan',lat:36.2,lon:138.3,continent:'Asia' },{ name:'South Korea',lat:35.9,lon:127.8,continent:'Asia' },
+      { name:'Thailand',lat:15.9,lon:100.9,continent:'Asia' },{ name:'Australia',lat:-25.3,lon:133.8,continent:'Oceania' },
+      { name:'New Zealand',lat:-40.9,lon:174.9,continent:'Oceania' },{ name:'Fiji',lat:-17.7,lon:178.0,continent:'Oceania' },
     ];
-
-    // Create pin meshes on the globe — globe now exists so we can attach to it
-    const pinMeshes = [];
-    const pinGroup = new THREE.Group();
-    globe.add(pinGroup); // Attach to globe so pins rotate with it
-
+    const pinMeshes = []; const pinGroup = new THREE.Group(); globe.add(pinGroup);
     countryPins.forEach(pin => {
-      const phi = (90 - pin.lat) * (Math.PI / 180);
-      const theta = (pin.lon + 180) * (Math.PI / 180);
-
-      const x = -1.02 * Math.sin(phi) * Math.cos(theta);
-      const y = 1.02 * Math.cos(phi);
-      const z = 1.02 * Math.sin(phi) * Math.sin(theta);
-
-      // Find continent color
-      const cont = continents.find(c => c.name === pin.continent);
-      const pinColor = cont ? cont.color : '#ff00ff';
-
-      // Pin stem (thin cylinder)
-      const stemGeometry = new THREE.CylinderGeometry(0.003, 0.003, 0.06, 6);
-      const stemMaterial = new THREE.MeshBasicMaterial({ color: pinColor });
-      const stem = new THREE.Mesh(stemGeometry, stemMaterial);
-
-      // Pin head (sphere)
-      const headGeometry = new THREE.SphereGeometry(0.018, 12, 12);
-      const headMaterial = new THREE.MeshBasicMaterial({
-        color: pinColor,
-        transparent: true,
-        opacity: 0.95
-      });
-      const head = new THREE.Mesh(headGeometry, headMaterial);
-      head.position.y = 0.045; // On top of the stem
-
-      // Glow ring around head
-      const glowGeometry = new THREE.RingGeometry(0.02, 0.035, 16);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: pinColor,
-        transparent: true,
-        opacity: 0.4,
-        side: THREE.DoubleSide
-      });
-      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-      glow.position.y = 0.045;
-
-      // Group the pin parts
-      const pinMesh = new THREE.Group();
-      pinMesh.add(stem);
-      pinMesh.add(head);
-      pinMesh.add(glow);
-
-      // Position on globe surface
-      pinMesh.position.set(x, y, z);
-
-      // Orient pin to point outward from globe center
-      pinMesh.lookAt(0, 0, 0);
-      pinMesh.rotateX(Math.PI / 2); // Align cylinder upward from surface
-
-      // Store data for raycasting
-      pinMesh.userData = {
-        isPin: true,
-        countryName: pin.name,
-        continentName: pin.continent
-      };
-
-      // Also tag each child so raycaster can find the parent
-      pinMesh.children.forEach(child => {
-        child.userData = {
-          isPin: true,
-          countryName: pin.name,
-          continentName: pin.continent
-        };
-      });
-
-      pinGroup.add(pinMesh);
-      // Push the head and stem (clickable parts) into our array for raycasting
-      pinMeshes.push(head);
-      pinMeshes.push(stem);
+      const phi=(90-pin.lat)*(Math.PI/180), theta=(pin.lon+180)*(Math.PI/180);
+      const x=-1.02*Math.sin(phi)*Math.cos(theta), y=1.02*Math.cos(phi), z=1.02*Math.sin(phi)*Math.sin(theta);
+      const cont = continents.find(c=>c.name===pin.continent); const pc = cont?cont.color:'#ff00ff';
+      const stem=new THREE.Mesh(new THREE.CylinderGeometry(.003,.003,.06,6),new THREE.MeshBasicMaterial({color:pc}));
+      const head=new THREE.Mesh(new THREE.SphereGeometry(.018,12,12),new THREE.MeshBasicMaterial({color:pc,transparent:true,opacity:.95}));
+      head.position.y=.045;
+      const glow=new THREE.Mesh(new THREE.RingGeometry(.02,.035,16),new THREE.MeshBasicMaterial({color:pc,transparent:true,opacity:.4,side:THREE.DoubleSide}));
+      glow.position.y=.045;
+      const pm=new THREE.Group(); pm.add(stem);pm.add(head);pm.add(glow);
+      pm.position.set(x,y,z); pm.lookAt(0,0,0); pm.rotateX(Math.PI/2);
+      const ud={isPin:true,countryName:pin.name,continentName:pin.continent};
+      pm.userData=ud; pm.children.forEach(c=>{c.userData=ud;});
+      pinGroup.add(pm); pinMeshes.push(head,stem);
     });
-
-    // Store pin meshes in ref so click handler can access them
     pinMeshesRef.current = pinMeshes;
 
-    //loading the geojson data for the 3d globe to make it accurate
-    const countryGroup = new THREE.Group();
-    scene.add(countryGroup);
-
-    fetch('/geojson/countries.json')
-      .then(response => response.json())
-      .then(data => {
-        console.log('GeoJSON loaded:', data.features.length, 'countries');
-        
-        data.features.forEach((feature, index) => {
-          const countryName = 
-          feature.properties.ADMIN || 
-          feature.properties.NAME || 
-          feature.properties.name ||
-          feature.properties.NAME_LONG ||
-          feature.properties.SOVEREIGNT || 
-          `Country ${index}`;
-          
-          
-          if (feature.geometry.type === 'Polygon') {
-            drawCountry(feature.geometry.coordinates, countryName, countryGroup);
-          } else if (feature.geometry.type === 'MultiPolygon') {
-            feature.geometry.coordinates.forEach(polygon => {
-              drawCountry(polygon, countryName, countryGroup);
-            });
-          }
-        });
-      })
-      .catch(error => {
-        console.log('GeoJSON not loaded:', error);
-        // Fallback to land data
-        fetch('/geojson/ne_110m_land.json')
-          .then(response => response.json())
-          .then(data => {
-            data.features.forEach((feature, index) => {
-              if (feature.geometry.type === 'Polygon') {
-                drawCountry(feature.geometry.coordinates, `Land ${index}`, countryGroup);
-              } else if (feature.geometry.type === 'MultiPolygon') {
-                feature.geometry.coordinates.forEach(polygon => {
-                  drawCountry(polygon, `Land ${index}`, countryGroup);
-                });
-              }
-            });
-          })
-          .catch(err => console.log('No GeoJSON available:', err));
+    // GeoJSON
+    const cGroup = new THREE.Group(); scene.add(cGroup);
+    fetch('/geojson/countries.json').then(r=>r.json()).then(data=>{
+      data.features.forEach((f,i)=>{
+        const nm=f.properties.ADMIN||f.properties.NAME||f.properties.name||f.properties.NAME_LONG||f.properties.SOVEREIGNT||`Country ${i}`;
+        if(f.geometry.type==='Polygon') drawC(f.geometry.coordinates,nm,cGroup);
+        else if(f.geometry.type==='MultiPolygon') f.geometry.coordinates.forEach(p=>drawC(p,nm,cGroup));
       });
-
-    //adding the element to hover over the country and light it up
-    function drawCountry(coordinates, countryName, group) {
-      coordinates.forEach(ring => {
-        const points = [];
-
-        ring.forEach(([lon, lat]) => {
-          const phi = (90 - lat) * (Math.PI / 180);
-          const theta = (lon + 180) * (Math.PI / 180);
-
-          const x = -1.015 * Math.sin(phi) * Math.cos(theta);
-          const y = 1.015 * Math.cos(phi);
-          const z = 1.015 * Math.sin(phi) * Math.sin(theta);
-
-          points.push(new THREE.Vector3(x, y, z));
+    }).catch(()=>{
+      fetch('/geojson/ne_110m_land.json').then(r=>r.json()).then(data=>{
+        data.features.forEach((f,i)=>{
+          if(f.geometry.type==='Polygon') drawC(f.geometry.coordinates,`Land ${i}`,cGroup);
+          else if(f.geometry.type==='MultiPolygon') f.geometry.coordinates.forEach(p=>drawC(p,`Land ${i}`,cGroup));
         });
+      }).catch(()=>{});
+    });
 
-        if (points.length > 3) {
-          // Draw the visible border line 
-          const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-          const lineMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ffff,
-            transparent: true,
-            opacity: 0.6,
-            linewidth: 2
-          });
-          const line = new THREE.Line(lineGeometry, lineMaterial);
-          line.userData.countryName = countryName;
-          group.add(line);
-
-          // Store border reference for hover highlighting
-          if (!countryBordersRef.current.has(countryName)) {
-            countryBordersRef.current.set(countryName, []);
-          }
-          countryBordersRef.current.get(countryName).push(line);
-
-          //Create a clickable filled mesh using triangulation
-          try {
-            
-            // Calculate centroid of the points
-            const centroid = new THREE.Vector3(0, 0, 0);
-            points.forEach(p => centroid.add(p));
-            centroid.divideScalar(points.length);
-            // Push centroid outward to globe surface
-            centroid.normalize().multiplyScalar(1.015);
-
-            const vertices = [];
-            const indices = [];
-
-            // Add centroid as vertex 0
-            vertices.push(centroid.x, centroid.y, centroid.z);
-
-            // Add all polygon points
-            points.forEach(p => {
-              vertices.push(p.x, p.y, p.z);
-            });
-
-            // Create fan triangles from centroid to each edge
-            for (let i = 1; i < points.length; i++) {
-              indices.push(0, i, i + 1);
-            }
-            // Close the fan
-            indices.push(0, points.length, 1);
-
-            const meshGeometry = new THREE.BufferGeometry();
-            meshGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            meshGeometry.setIndex(indices);
-            meshGeometry.computeVertexNormals();
-
-            const meshMaterial = new THREE.MeshBasicMaterial({
-              color: 0xff00ff,
-              transparent: true,
-              opacity: 0.0,      
-              side: THREE.DoubleSide,
-              depthWrite: false
-            });
-
-            const mesh = new THREE.Mesh(meshGeometry, meshMaterial);
-            mesh.userData.isCountry = true;
-            mesh.userData.countryName = countryName;
-            group.add(mesh);
-
-            // Store reference for raycasting
-            countryMeshesRef.current.push(mesh);
-          } catch (e) {
-            
-            console.warn('Could not create mesh for', countryName, e);
-          }
+    function drawC(coords, name, grp) {
+      coords.forEach(ring=>{
+        const pts=[];
+        ring.forEach(([lon,lat])=>{
+          const p=(90-lat)*(Math.PI/180),t=(lon+180)*(Math.PI/180);
+          pts.push(new THREE.Vector3(-1.015*Math.sin(p)*Math.cos(t),1.015*Math.cos(p),1.015*Math.sin(p)*Math.sin(t)));
+        });
+        if(pts.length>3){
+          const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x00ffff,transparent:true,opacity:.6}));
+          ln.userData.countryName=name; grp.add(ln);
+          if(!countryBordersRef.current.has(name)) countryBordersRef.current.set(name,[]);
+          countryBordersRef.current.get(name).push(ln);
+          try{
+            const cen=new THREE.Vector3(); pts.forEach(p=>cen.add(p));
+            cen.divideScalar(pts.length).normalize().multiplyScalar(1.015);
+            const v=[cen.x,cen.y,cen.z]; pts.forEach(p=>v.push(p.x,p.y,p.z));
+            const idx=[]; for(let i=1;i<pts.length;i++) idx.push(0,i,i+1); idx.push(0,pts.length,1);
+            const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+            g.setIndex(idx); g.computeVertexNormals();
+            const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xff00ff,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}));
+            m.userData={isCountry:true,countryName:name}; grp.add(m); countryMeshesRef.current.push(m);
+          }catch(e){}
         }
       });
     }
 
-    //drawing a polygon from  geojson
-    function drawPolygon(coordinates, group) {
-      coordinates.forEach(ring => {
-        const points = [];
-        
-        ring.forEach(([lon, lat]) => {
-          const phi = (90 - lat) * (Math.PI / 180);
-          const theta = (lon + 180) * (Math.PI / 180);
-          
-          const x = -1.005 * Math.sin(phi) * Math.cos(theta);
-          const y = 1.005 * Math.cos(phi);
-          const z = 1.005 * Math.sin(phi) * Math.sin(theta);
-          
-          points.push(new THREE.Vector3(x, y, z));
-        });
+    // Interaction
+    const onMove=(e)=>{const r=renderer.domElement.getBoundingClientRect();mouseRef.current.x=((e.clientX-r.left)/r.width)*2-1;mouseRef.current.y=-((e.clientY-r.top)/r.height)*2+1;};
+    const onClick=(e)=>{
+      const r=renderer.domElement.getBoundingClientRect();
+      mouseRef.current.x=((e.clientX-r.left)/r.width)*2-1;mouseRef.current.y=-((e.clientY-r.top)/r.height)*2+1;
+      raycasterRef.current.setFromCamera(mouseRef.current,camera);
+      const pH=raycasterRef.current.intersectObjects(pinMeshesRef.current,true);
+      if(pH.length>0){const{countryName:cn,continentName:ct}=pH[0].object.userData;if(cn){
+        const fc=continents.find(c=>c.name===ct),co=fc?.countries.find(c=>c.name===cn);
+        if(fc&&co) window.dispatchEvent(new CustomEvent('globe-click',{detail:{continent:fc,country:co}}));return;}}
+      const cH=raycasterRef.current.intersectObjects(countryMeshesRef.current);
+      if(cH.length>0&&cH[0].object.userData.isCountry){const cn=cH[0].object.userData.countryName;
+        let fc=null,co=null;for(const ct of continents){const c=ct.countries.find(c=>cn.toLowerCase().includes(c.name.toLowerCase())||c.name.toLowerCase().includes(cn.toLowerCase()));
+        if(c){fc=ct;co=c;break;}}if(fc&&co) window.dispatchEvent(new CustomEvent('globe-click',{detail:{continent:fc,country:co}}));}
+    };
+    renderer.domElement.addEventListener('click',onClick); window.addEventListener('mousemove',onMove);
 
-        if (points.length > 2) {
-          const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-          const lineMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ffaa,
-            transparent: true,
-            opacity: 0.7,
-            linewidth: 2
-          });
-          const line = new THREE.Line(lineGeometry, lineMaterial);
-          group.add(line);
-        }
-      });
+    function hover(){
+      raycasterRef.current.setFromCamera(mouseRef.current,camera);
+      const pH=raycasterRef.current.intersectObjects(pinMeshesRef.current,true);
+      pinMeshesRef.current.forEach(m=>{if(m.geometry.type==='SphereGeometry')m.scale.set(1,1,1);});
+      countryBordersRef.current.forEach(b=>b.forEach(l=>{l.material.color.setHex(0x00ffff);l.material.opacity=.6;}));
+      if(pH.length>0&&pH[0].object.userData.isPin){const h=pH[0].object;if(h.geometry.type==='SphereGeometry')h.scale.set(1.5,1.5,1.5);
+        setHoveredCountry(h.userData.countryName);renderer.domElement.style.cursor='pointer';return;}
+      const cH=raycasterRef.current.intersectObjects(countryMeshesRef.current);
+      if(cH.length>0&&cH[0].object.userData.isCountry){const cn=cH[0].object.userData.countryName;
+        const b=countryBordersRef.current.get(cn);if(b)b.forEach(l=>{l.material.color.setHex(0x00ff00);l.material.opacity=1;});
+        setHoveredCountry(cn);renderer.domElement.style.cursor='pointer';}
+      else{setHoveredCountry(null);renderer.domElement.style.cursor='grab';}
     }
 
-    //handle the mouse movement
-    const handleMouseMove = (e) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    };
+    let aId; const animate=()=>{aId=requestAnimationFrame(animate);if(globe)globe.rotation.y+=.001;stars.rotation.y+=.0002;hover();controls.update();renderer.render(scene,camera);};animate();
+    const onResize=()=>{const w2=currentMount.clientWidth,h2=currentMount.clientHeight;camera.aspect=w2/h2;camera.updateProjectionMatrix();renderer.setSize(w2,h2);};
+    window.addEventListener('resize',onResize);
 
-    // Click handler — checks BOTH pins and country meshes
-    const handleClick = (e) => {
-      // Update mouse position
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    return ()=>{window.removeEventListener('resize',onResize);window.removeEventListener('mousemove',onMove);renderer.domElement.removeEventListener('click',onClick);
+      cancelAnimationFrame(aId);currentMount.removeChild(renderer.domElement);starsGeo.dispose();starsMat.dispose();globeGeo.dispose();globeMat.dispose();wfGeo.dispose();wfMat.dispose();renderer.dispose();};
+  },[]);
 
-      raycasterRef.current.setFromCamera(mouseRef.current, camera);
+  // Globe click listener
+  useEffect(()=>{
+    const h=(e)=>openSearchPanel(e.detail.continent,e.detail.country);
+    window.addEventListener('globe-click',h);
+    return ()=>window.removeEventListener('globe-click',h);
+  },[]);
 
-      // First check pins (they sit on top of the globe, so check them first)
-      const pinIntersects = raycasterRef.current.intersectObjects(pinMeshesRef.current, true);
-
-      if (pinIntersects.length > 0) {
-        const hit = pinIntersects[0].object;
-        const countryName = hit.userData.countryName;
-        const continentName = hit.userData.continentName;
-
-        if (countryName) {
-          console.log('Clicked pin:', countryName, continentName);
-
-          const foundContinent = continents.find(c => c.name === continentName);
-          const foundCountry = foundContinent?.countries.find(c => c.name === countryName);
-
-          if (foundContinent && foundCountry) {
-            // Open the search modal directly for this country
-            setSelectedContinent(foundContinent);
-            setSelectedCountry(foundCountry);
-            setSelectedCity('');
-            setShowResults(false);
-            setSearchCriteria({ role: '', experience: '', specialty: '' });
-            setShowSearchModal(true);
-          }
-          return; // Pin was clicked, don't also check country meshes
-        }
-      }
-
-      // If no pin was hit, check country meshes as fallback
-      const countryIntersects = raycasterRef.current.intersectObjects(countryMeshesRef.current);
-
-      if (countryIntersects.length > 0) {
-        const clickedMesh = countryIntersects[0].object;
-        if (clickedMesh.userData.isCountry) {
-          const countryName = clickedMesh.userData.countryName;
-          console.log('Clicked country:', countryName);
-
-          // Find which continent this country belongs to
-          let foundContinent = null;
-          let foundCountry = null;
-
-          for (const continent of continents) {
-            const country = continent.countries.find(c => 
-              countryName.toLowerCase().includes(c.name.toLowerCase()) ||
-              c.name.toLowerCase().includes(countryName.toLowerCase())
-            );
-            if (country) {
-              foundContinent = continent;
-              foundCountry = country;
-              break;
-            }
-          }
-
-          if (foundContinent && foundCountry) {
-            // Open the search modal directly for this country
-            setSelectedContinent(foundContinent);
-            setSelectedCountry(foundCountry);
-            setSelectedCity('');
-            setShowResults(false);
-            setSearchCriteria({ role: '', experience: '', specialty: '' });
-            setShowSearchModal(true);
-          } else {
-            // Country exists in GeoJSON but not in our continents data
-            console.log(`${countryName} not in talent database yet`);
-          }
-        }
-      }
-    };
-
-    renderer.domElement.addEventListener('click', handleClick);
-
-    //adding an event listener for it 
-    window.addEventListener('mousemove', handleMouseMove);
-
-    // Hover function — checks both pins and country meshes
-    function checkHover() {
-      raycasterRef.current.setFromCamera(mouseRef.current, camera);
-
-      // First check pin hover
-      const pinIntersects = raycasterRef.current.intersectObjects(pinMeshesRef.current, true);
-
-      // Reset all pins to normal scale
-      pinMeshesRef.current.forEach(mesh => {
-        if (mesh.geometry.type === 'SphereGeometry') {
-          mesh.scale.set(1, 1, 1);
-        }
+  // Search
+  const handleSearch = async () => {
+    setSearchLoading(true);
+    try {
+      const results = await searchTalent({
+        country: selectedCountry?.name,
+        city: selectedCity || undefined,
+        role: searchCriteria.role || undefined,
+        experience: searchCriteria.experience || undefined,
+        specialty: searchCriteria.specialty || undefined,
       });
-
-      // Reset all country borders to default (cyan)
-      countryBordersRef.current.forEach((borders) => {
-        borders.forEach(border => {
-          border.material.color.setHex(0x00ffff); // Cyan
-          border.material.opacity = 0.6;
-        });
-      });
-
-      // Check if hovering over a pin
-      if (pinIntersects.length > 0) {
-        const hit = pinIntersects[0].object;
-        if (hit.userData.isPin) {
-          // Scale up the pin head on hover
-          if (hit.geometry.type === 'SphereGeometry') {
-            hit.scale.set(1.5, 1.5, 1.5);
-          }
-          setHoveredCountry(hit.userData.countryName);
-          renderer.domElement.style.cursor = 'pointer';
-          return; // Pin hover takes priority, skip country mesh check
-        }
-      }
-
-      // If no pin hovered, check country meshes
-      const countryIntersects = raycasterRef.current.intersectObjects(countryMeshesRef.current);
-
-      if (countryIntersects.length > 0) {
-        const hoveredMesh = countryIntersects[0].object;
-        if (hoveredMesh.userData.isCountry) {
-          const countryName = hoveredMesh.userData.countryName;
-          
-          // Make country borders glow GREEN
-          const borders = countryBordersRef.current.get(countryName);
-          if (borders) {
-            borders.forEach(border => {
-              border.material.color.setHex(0x00ff00); // Green glow
-              border.material.opacity = 1.0; // Full brightness
-            });
-          }
-          
-          setHoveredCountry(countryName);
-          renderer.domElement.style.cursor = 'pointer';
-        }
-      } else {
-        setHoveredCountry(null);
-        renderer.domElement.style.cursor = 'grab';
-      }
-    }
-
-    //animation loop
-    let animationId;
-    const animate = () => {
-      animationId = requestAnimationFrame(animate);
-      
-      // Slow auto-rotation
-      if (globe) {
-        globe.rotation.y += 0.001;
-      }
-      
-      // Twinkle stars
-      stars.rotation.y += 0.0002;
-
-      // calling the hover function
-      checkHover();
-      
-      controls.update();
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    //adjusting the sizing based on where the user is looking at it
-    const handleResize = () => {
-      const width = currentMount.clientWidth;
-      const height = currentMount.clientHeight;
-      
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-    };
-    window.addEventListener('resize', handleResize);
-
-    //cleaning up the animation to make sure its properly working out
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('mousemove', handleMouseMove);
-      renderer.domElement.removeEventListener('click', handleClick);
-
-      cancelAnimationFrame(animationId);
-      currentMount.removeChild(renderer.domElement);
-      
-      // Dispose of Three.js objects
-      starsGeometry.dispose();
-      starsMaterial.dispose();
-      globeGeometry.dispose();
-      globeMaterial.dispose();
-      wireframeGeometry.dispose();
-      wireframeMaterial.dispose();
-      renderer.dispose();
-    };
-  }, []);
-
-  //handlers to see the continent and corporating with it
-  const handleContinentSelect = (continent) => {
-    setSelectedContinent(continent);
-    setSelectedCountry(null);
-    setSelectedCity('');
-    setShowResults(false);
-    setSearchCriteria({ role: '', experience: '', specialty: '' });
-    setShowCountryList(true);
+      setSearchResults(results);
+    } catch (err) { setSearchResults([]); }
+    setSearchLoading(false);
+    setShowSearchPanel(false);
+    setShowResultsPanel(true);
   };
 
-  const handleCountrySelect = (country) => {
-    setSelectedCountry(country);
-    setSelectedCity('');
-    setShowCountryList(false);
-    setShowSearchModal(true);
-  };
+  const handleRefine = () => { setShowResultsPanel(false); setSelectedProfile(null); setShowSearchPanel(true); };
 
-  const handleSearch = () => {
-    console.log('Searching:', searchCriteria, 'in', selectedCountry?.name || selectedCountry, selectedCity, selectedContinent?.name);
-    // show results popup instead of closing everything
-    setShowSearchModal(false);
-    setShowResults(true);
-  };
-
-  // close everything and reset
-  const handleCloseAll = () => {
-    setShowCountryList(false);
-    setShowSearchModal(false);
-    setShowResults(false);
-    setSelectedContinent(null);
-    setSelectedCountry(null);
-    setSelectedCity('');
-    setSearchCriteria({ role: '', experience: '', specialty: '' });
-  };
-
-  // go back from results to refine the search
-  const handleRefineSearch = () => {
-    setShowResults(false);
-    setShowSearchModal(true);
-  };
-
-  // mock results for demo
-  const mockResults = [
-    { name: 'Aria Chen', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
-    { name: 'Jamal Williams', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
-    { name: 'Sofia Reyes', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
-    { name: 'Liam O\'Brien', role: searchCriteria.role || 'Multi-disciplinary', city: selectedCity || selectedCountry?.cities?.[0] || '—' },
-  ];
+  const sidePanelOpen = showSearchPanel || showResultsPanel;
+  const accent = selectedContinent?.color || '#ff00ff';
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#0a0014' }}>
-
-      {/* curved banner + header  */}
-      <div className="relative z-20 pt-6 pb-2">
-        {/* Curved Banner on Globe */}
-        <div className="flex justify-center">
-          <svg width="620" height="90" viewBox="0 0 620 90" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_30px_rgba(255,0,255,0.8)]" style={{ maxWidth: '90vw' }}>
-            <defs>
-              <path id="textCurve" d="M 40,75 Q 310,15 580,75" fill="none"/>
-              
-              <linearGradient id="bannerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff00ff" stopOpacity="0.9"/>
-                <stop offset="50%" stopColor="#a855f7" stopOpacity="0.95"/>
-                <stop offset="100%" stopColor="#ff006e" stopOpacity="0.9"/>
-              </linearGradient>
-              
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-                <feMerge>
-                  <feMergeNode in="coloredBlur"/>
-                  <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-              </filter>
-            </defs>
-            
-            <path d="M 40,75 Q 310,15 580,75 L 580,88 Q 310,28 40,88 Z" 
-                  fill="url(#bannerGrad)" 
-                  opacity="0.85"
-                  filter="url(#glow)"/>
-            
-            <text 
-              fill="white" 
-              fontSize="34" 
-              fontWeight="900" 
-              letterSpacing="10"
-              fontFamily="Orbitron, Rajdhani, Arial Black, sans-serif"
-              filter="url(#glow)">
-              <textPath href="#textCurve" startOffset="50%" textAnchor="middle">
-                GLOBAL STUDIOS
-              </textPath>
-            </text>
-          </svg>
-        </div>
-        
-        {/* Header subtitle */}
-        <div className="text-center mt-1">
-          <p className="text-sm md:text-base tracking-[0.2em] text-fuchsia-400 animate-pulse">
-            GLOBAL TALENT NETWORK
-          </p>
-        </div>
-
-        {/* Controls Info — moved to top, under subtitle */}
-        <div className="text-center mt-2">
-          <div className="inline-block bg-[rgba(26,0,51,0.9)] border border-fuchsia-500/40 px-6 py-2 backdrop-blur-lg rounded">
-            <p className="text-xs md:text-sm tracking-wider text-fuchsia-400">
-              🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 CLICK A COUNTRY TO FIND TALENT
-            </p>
+    <>
+      {/* ══════ GLOBE ══════ */}
+      <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#0a0014' }}>
+        <div className="relative z-20 pt-6 pb-2">
+          <div className="flex justify-center">
+            <svg width="620" height="90" viewBox="0 0 620 90" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_30px_rgba(255,0,255,0.8)]" style={{maxWidth:'90vw'}}>
+              <defs>
+                <path id="tc" d="M 40,75 Q 310,15 580,75" fill="none"/>
+                <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#ff00ff" stopOpacity=".9"/><stop offset="50%" stopColor="#a855f7" stopOpacity=".95"/><stop offset="100%" stopColor="#ff006e" stopOpacity=".9"/></linearGradient>
+                <filter id="gl"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              </defs>
+              <path d="M 40,75 Q 310,15 580,75 L 580,88 Q 310,28 40,88 Z" fill="url(#bg)" opacity=".85" filter="url(#gl)"/>
+              <text fill="white" fontSize="34" fontWeight="900" letterSpacing="10" fontFamily="Orbitron,Rajdhani,Arial Black,sans-serif" filter="url(#gl)">
+                <textPath href="#tc" startOffset="50%" textAnchor="middle">GLOBAL STUDIOS</textPath></text>
+            </svg>
+          </div>
+          <div className="text-center mt-1"><p className="text-sm md:text-base tracking-[0.2em] text-fuchsia-400 animate-pulse">GLOBAL TALENT NETWORK</p></div>
+          <div className="text-center mt-2">
+            <div className="inline-block bg-[rgba(26,0,51,0.9)] border border-fuchsia-500/40 px-6 py-2 backdrop-blur-lg rounded">
+              <p className="text-xs md:text-sm tracking-wider text-fuchsia-400">🖱️ DRAG TO ROTATE • 🔍 SCROLL TO ZOOM • 📍 CLICK A COUNTRY TO FIND TALENT</p>
+            </div>
+          </div>
+          <div className="absolute top-6 right-6 z-30">
+            <button className="px-5 py-2.5 rounded font-bold text-sm tracking-widest transition-all hover:scale-105"
+              style={{background:'transparent',color:'#a855f7',border:'2px solid #a855f7',boxShadow:'0 0 20px rgba(168,85,247,.3)'}}
+              onClick={()=>setShowDashboard(true)}>📊 ANALYTICS</button>
           </div>
         </div>
+        <div ref={mountRef} className="absolute inset-0 z-0" style={{width:'100vw',height:'100vh'}}/>
+        {hoveredCountry&&(
+          <div className="fixed z-[200] pointer-events-none px-3 py-1.5 rounded text-sm font-bold tracking-wider"
+            style={{left:'50%',bottom:'40px',transform:'translateX(-50%)',background:'rgba(26,0,51,.95)',border:'1px solid #ff00ff',color:'#f0abfc',boxShadow:'0 0 20px rgba(255,0,255,.4)'}}>
+            📍 {hoveredCountry}
+          </div>
+        )}
       </div>
 
-      
-      {/* Three.js Canvas */}
-      <div 
-        ref={mountRef} 
-        className="absolute inset-0 z-0" 
-        style={{ 
-          width: '100vw', 
-          height: '100vh'
-        }} 
-      />
+      {/* ══════════════════════════════════════════════════════
+          RIGHT SIDE PANEL — rendered via Portal into document.body
+          This guarantees it shows on top of EVERYTHING.
+          ══════════════════════════════════════════════════════ */}
+      {sidePanelOpen && (
+        <Portal>
+          <div style={{position:'fixed',inset:0,zIndex:9999,pointerEvents:'none'}}>
+            {/* dim overlay — click to close */}
+            <div
+              style={{
+                position:'absolute', inset:0, pointerEvents:'auto',
+                background:'rgba(10,0,20,0.3)',
+                opacity: panelAnimated ? 1 : 0,
+                transition:'opacity 0.3s ease',
+              }}
+              onClick={closeAllPanels}
+            />
 
-      {/* Country name tooltip on hover */}
-      {hoveredCountry && (
-        <div 
-          className="fixed z-[200] pointer-events-none px-3 py-1.5 rounded text-sm font-bold tracking-wider"
-          style={{
-            left: '50%',
-            bottom: '40px',
-            transform: 'translateX(-50%)',
-            background: 'rgba(26, 0, 51, 0.95)',
-            border: '1px solid #ff00ff',
-            color: '#f0abfc',
-            boxShadow: '0 0 20px rgba(255, 0, 255, 0.4)'
-          }}
-        >
-          📍 {hoveredCountry}
-        </div>
-      )}
-
-      {/* search/filter modal */}
-      {showSearchModal && selectedContinent && selectedCountry && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
-          <div 
-            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[90vh] overflow-y-auto"
-            style={{
-              background: '#0f0020',
-              borderWidth: 2,
-              borderStyle: 'solid',
-              borderColor: selectedContinent.color,
-              boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
-            }}
-          >
-            <button
-              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all hover:rotate-90 rounded"
-              style={{ borderColor: selectedContinent.color, color: selectedContinent.color, background: 'transparent' }}
-              onClick={handleCloseAll}
-            >
-              ✕
-            </button>
-
-            <h2 
-              className="text-3xl md:text-4xl font-black tracking-wider mb-2"
-              style={{ 
-                color: selectedContinent.color,
-                textShadow: `0 0 20px ${selectedContinent.color}`
+            {/* slide-in panel */}
+            <div
+              style={{
+                position:'absolute', top:0, right:0,
+                height:'100%', width:'420px', maxWidth:'92vw',
+                pointerEvents:'auto',
+                overflowY:'auto',
+                transform: panelAnimated ? 'translateX(0)' : 'translateX(100%)',
+                transition:'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                background:'rgba(10, 0, 20, 0.96)',
+                borderLeft:`2px solid ${accent}`,
+                boxShadow:`-10px 0 60px ${accent}44, inset 4px 0 30px ${accent}11`,
+                backdropFilter:'blur(24px)',
+                WebkitBackdropFilter:'blur(24px)',
               }}
             >
-              FIND TALENT
-            </h2>
-            <p className="text-fuchsia-300 tracking-widest mb-6 text-sm">
-              {selectedCountry.name} · {selectedContinent.name}
-            </p>
+              {/* close button */}
+              <button
+                onClick={closeAllPanels}
+                style={{
+                  position:'absolute', top:'20px', right:'20px', zIndex:10,
+                  width:'36px', height:'36px', display:'flex', alignItems:'center', justifyContent:'center',
+                  border:`2px solid ${accent}`, borderRadius:'6px', background:'transparent',
+                  color:accent, fontSize:'18px', cursor:'pointer', transition:'transform 0.2s',
+                }}
+                onMouseEnter={(e)=>e.target.style.transform='rotate(90deg)'}
+                onMouseLeave={(e)=>e.target.style.transform='rotate(0)'}
+              >✕</button>
 
-            <div className="space-y-4 mb-6">
-              {/* City / Region picker — pin a specific location */}
-              <div>
-                <label 
-                  className="block mb-2 text-sm tracking-widest font-semibold"
-                  style={{ color: selectedContinent.color }}
-                >
-                  📍 CITY / REGION
-                </label>
-                <select
-                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
-                  style={{ borderColor: `${selectedContinent.color}55` }}
-                  value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
-                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
-                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
-                >
-                  <option value="">All cities...</option>
-                  {selectedCountry.cities && selectedCountry.cities.map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              </div>
+              {/* ── SEARCH FILTERS ── */}
+              {showSearchPanel && selectedCountry && (
+                <div style={{padding:'60px 28px 28px'}}>
+                  <h2 style={{fontSize:'28px',fontWeight:900,letterSpacing:'3px',color:accent,textShadow:`0 0 20px ${accent}`,marginBottom:'4px'}}>
+                    FIND TALENT
+                  </h2>
+                  <p style={{color:'#d8b4fe',fontSize:'13px',letterSpacing:'3px',marginBottom:'24px'}}>
+                    {selectedCountry.name} · {selectedContinent?.name}
+                  </p>
 
-              {/* Role — who are they */}
-              <div>
-                <label 
-                  className="block mb-2 text-sm tracking-widest font-semibold"
-                  style={{ color: selectedContinent.color }}
-                >
-                  ROLE
-                </label>
-                <select
-                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
-                  style={{ borderColor: `${selectedContinent.color}55` }}
-                  value={searchCriteria.role}
-                  onChange={(e) => setSearchCriteria({...searchCriteria, role: e.target.value})}
-                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
-                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
-                >
-                  <option value="">Select role...</option>
-                  {talentRoles.map(role => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Experience — what level are they looking for */}
-              <div>
-                <label 
-                  className="block mb-2 text-sm tracking-widest font-semibold"
-                  style={{ color: selectedContinent.color }}
-                >
-                  EXPERIENCE
-                </label>
-                <select
-                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
-                  style={{ borderColor: `${selectedContinent.color}55` }}
-                  value={searchCriteria.experience}
-                  onChange={(e) => setSearchCriteria({...searchCriteria, experience: e.target.value})}
-                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
-                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
-                >
-                  <option value="">Select experience...</option>
-                  <option value="emerging">Emerging (0-2 years)</option>
-                  <option value="professional">Professional (3-7 years)</option>
-                  <option value="veteran">Veteran (8-15 years)</option>
-                  <option value="legendary">Legendary (15+ years)</option>
-                </select>
-              </div>
-
-              {/* Specialty — what are they looking for */}
-              <div>
-                <label 
-                  className="block mb-2 text-sm tracking-widest font-semibold"
-                  style={{ color: selectedContinent.color }}
-                >
-                  SPECIALTY / GENRE
-                </label>
-                <input
-                  type="text"
-                  className="w-full p-3 bg-[#0a0018] border-2 rounded text-white outline-none"
-                  style={{ borderColor: `${selectedContinent.color}55` }}
-                  placeholder="e.g., Action, Drama, Sci-Fi..."
-                  value={searchCriteria.specialty}
-                  onChange={(e) => setSearchCriteria({...searchCriteria, specialty: e.target.value})}
-                  onFocus={(e) => e.target.style.borderColor = selectedContinent.color}
-                  onBlur={(e) => e.target.style.borderColor = `${selectedContinent.color}55`}
-                />
-              </div>
-            </div>
-
-            <button
-              className="w-full px-8 py-4 border-none text-white text-xl font-bold tracking-widest transition-all hover:-translate-y-1 rounded"
-              style={{ background: `linear-gradient(135deg, ${selectedContinent.color}, ${selectedContinent.color}dd)` }}
-              onClick={handleSearch}
-            >
-              🎬 START SEARCH
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* results modal */}
-      {showResults && selectedContinent && selectedCountry && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center">
-          <div 
-            className="relative max-w-lg w-[90vw] p-8 rounded-lg max-h-[90vh] overflow-y-auto"
-            style={{
-              background: '#0f0020',
-              borderWidth: 2,
-              borderStyle: 'solid',
-              borderColor: selectedContinent.color,
-              boxShadow: `0 0 60px ${selectedContinent.color}88, inset 0 0 40px ${selectedContinent.color}22`
-            }}
-          >
-            <button
-              className="absolute top-5 right-5 w-10 h-10 border-2 text-2xl flex items-center justify-center transition-all hover:rotate-90 rounded"
-              style={{ borderColor: selectedContinent.color, color: selectedContinent.color, background: 'transparent' }}
-              onClick={handleCloseAll}
-            >
-              ✕
-            </button>
-
-            <h2 
-              className="text-2xl md:text-3xl font-black tracking-wider mb-1"
-              style={{ 
-                color: selectedContinent.color,
-                textShadow: `0 0 16px ${selectedContinent.color}`
-              }}
-            >
-              RESULTS
-            </h2>
-            <p className="text-fuchsia-300 tracking-widest mb-5 text-sm">
-              {selectedCountry.name} {selectedCity && `· ${selectedCity}`} · {selectedContinent.name}
-            </p>
-
-            {/* Result cards */}
-            <div className="space-y-3 mb-6">
-              {mockResults.map((person, i) => (
-                <div 
-                  key={i}
-                  className="flex items-center gap-4 p-4 rounded-lg"
-                  style={{ 
-                    background: `${selectedContinent.color}0a`,
-                    border: `1px solid ${selectedContinent.color}33`
-                  }}
-                >
-                  {/* avatar placeholder */}
-                  <div 
-                    className="w-11 h-11 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0"
-                    style={{ background: `linear-gradient(135deg, ${selectedContinent.color}88, ${selectedContinent.color}33)` }}
-                  >
-                    {person.name[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-base">{person.name}</div>
-                    <div className="text-xs text-fuchsia-300 tracking-wider">
-                      {person.role} · {person.city}
+                  <div style={{display:'flex',flexDirection:'column',gap:'16px',marginBottom:'24px'}}>
+                    <div>
+                      <label style={{display:'block',marginBottom:'8px',fontSize:'11px',letterSpacing:'3px',fontWeight:700,color:accent}}>📍 CITY / REGION</label>
+                      <select value={selectedCity} onChange={e=>setSelectedCity(e.target.value)}
+                        style={{width:'100%',padding:'12px',background:'#0a0018',border:`2px solid ${accent}44`,borderRadius:'6px',color:'white',outline:'none',fontSize:'14px'}}>
+                        <option value="">All cities...</option>
+                        {selectedCountry.cities?.map(c=><option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{display:'block',marginBottom:'8px',fontSize:'11px',letterSpacing:'3px',fontWeight:700,color:accent}}>ROLE</label>
+                      <select value={searchCriteria.role} onChange={e=>setSearchCriteria({...searchCriteria,role:e.target.value})}
+                        style={{width:'100%',padding:'12px',background:'#0a0018',border:`2px solid ${accent}44`,borderRadius:'6px',color:'white',outline:'none',fontSize:'14px'}}>
+                        <option value="">Select role...</option>
+                        {talentRoles.map(r=><option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{display:'block',marginBottom:'8px',fontSize:'11px',letterSpacing:'3px',fontWeight:700,color:accent}}>EXPERIENCE</label>
+                      <select value={searchCriteria.experience} onChange={e=>setSearchCriteria({...searchCriteria,experience:e.target.value})}
+                        style={{width:'100%',padding:'12px',background:'#0a0018',border:`2px solid ${accent}44`,borderRadius:'6px',color:'white',outline:'none',fontSize:'14px'}}>
+                        <option value="">Select experience...</option>
+                        <option value="emerging">Emerging (0-2 years)</option>
+                        <option value="professional">Professional (3-7 years)</option>
+                        <option value="veteran">Veteran (8-15 years)</option>
+                        <option value="legendary">Legendary (15+ years)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{display:'block',marginBottom:'8px',fontSize:'11px',letterSpacing:'3px',fontWeight:700,color:accent}}>SPECIALTY / GENRE</label>
+                      <input type="text" placeholder="e.g., Action, Drama, Sci-Fi..." value={searchCriteria.specialty}
+                        onChange={e=>setSearchCriteria({...searchCriteria,specialty:e.target.value})}
+                        style={{width:'100%',padding:'12px',background:'#0a0018',border:`2px solid ${accent}44`,borderRadius:'6px',color:'white',outline:'none',fontSize:'14px',boxSizing:'border-box'}}/>
                     </div>
                   </div>
-                  <button
-                    className="px-4 py-2 border-2 bg-transparent font-bold text-xs tracking-widest rounded transition-all hover:scale-105"
-                    style={{ borderColor: selectedContinent.color, color: selectedContinent.color }}
-                  >
-                    VIEW
+
+                  <button onClick={handleSearch}
+                    style={{width:'100%',padding:'16px',border:'none',borderRadius:'6px',color:'white',fontSize:'18px',fontWeight:700,letterSpacing:'3px',cursor:'pointer',
+                      background:`linear-gradient(135deg, ${accent}, ${accent}dd)`}}>
+                    🎬 START SEARCH
                   </button>
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* Refine search button — go back to filter popup */}
-            <button
-              className="w-full px-6 py-3 border-2 bg-transparent font-bold tracking-widest transition-all hover:-translate-y-1 rounded"
-              style={{ borderColor: selectedContinent.color, color: selectedContinent.color }}
-              onClick={handleRefineSearch}
-            >
-              ← REFINE SEARCH
-            </button>
+              {/* ── RESULTS ── */}
+              {showResultsPanel && selectedCountry && (
+                <div style={{padding:'60px 28px 28px'}}>
+                  <h2 style={{fontSize:'24px',fontWeight:900,letterSpacing:'3px',color:accent,textShadow:`0 0 16px ${accent}`,marginBottom:'4px'}}>
+                    RESULTS
+                  </h2>
+                  <p style={{color:'#d8b4fe',fontSize:'13px',letterSpacing:'3px',marginBottom:'20px'}}>
+                    {selectedCountry.name} {selectedCity && `· ${selectedCity}`} · {selectedContinent?.name}
+                  </p>
+
+                  {searchLoading ? (
+                    <div style={{textAlign:'center',padding:'60px 0'}}>
+                      <div style={{fontSize:'24px',color:accent}}>⏳ Searching...</div>
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div style={{textAlign:'center',padding:'60px 0'}}>
+                      <div style={{fontSize:'16px',color:'#d8b4fe88',marginBottom:'8px'}}>No talent found.</div>
+                      <div style={{fontSize:'13px',color:'#d8b4fe55'}}>Try broadening your filters.</div>
+                    </div>
+                  ) : (
+                    <div style={{display:'flex',flexDirection:'column',gap:'12px',marginBottom:'24px'}}>
+                      {searchResults.map((person, i) => (
+                        <div key={person.id||i} style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px',borderRadius:'10px',
+                          background:`${accent}08`,border:`1px solid ${accent}28`}}>
+                          <div style={{width:'44px',height:'44px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
+                            fontSize:'18px',fontWeight:700,flexShrink:0,background:`linear-gradient(135deg, ${accent}77, ${accent}22)`,color:'white'}}>
+                            {person.name[0]}
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:700,fontSize:'14px',color:'white'}}>{person.name}</div>
+                            <div style={{fontSize:'11px',color:'#d8b4fe99',letterSpacing:'2px'}}>{person.role} · {person.city}</div>
+                          </div>
+                          <button onClick={()=>setSelectedProfile(person)}
+                            style={{padding:'6px 14px',border:`2px solid ${accent}`,background:'transparent',color:accent,
+                              fontSize:'11px',fontWeight:700,letterSpacing:'2px',borderRadius:'6px',cursor:'pointer'}}>
+                            VIEW
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button onClick={handleRefine}
+                    style={{width:'100%',padding:'14px',border:`2px solid ${accent}`,background:'transparent',color:accent,
+                      fontWeight:700,letterSpacing:'3px',borderRadius:'6px',cursor:'pointer',fontSize:'14px'}}>
+                    ← REFINE SEARCH
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
-    </div>
+
+      {/* ── PROFILE MODAL (via Portal) ── */}
+      {selectedProfile && (
+        <Portal>
+          <ProfileModal profile={selectedProfile} color={accent} onClose={()=>setSelectedProfile(null)} />
+        </Portal>
+      )}
+
+      {/* ── ANALYTICS (via Portal) ── */}
+      {showDashboard && (
+        <Portal>
+          <AnalyticsDashboard isOpen={showDashboard} onClose={()=>setShowDashboard(false)} />
+        </Portal>
+      )}
+    </>
   );
 };
 
