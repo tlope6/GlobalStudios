@@ -1,6 +1,6 @@
 // Mock data layer — works without Supabase.
 // Social handles are FAKE display-only text (not real URLs).
-
+// In a real implementation, these would be properly formatted URLs and the data would come from Supabase.
 const MOCK_PROFILES = [
   // ── NORTH AMERICA ──
   {
