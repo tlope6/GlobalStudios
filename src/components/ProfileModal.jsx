@@ -1,123 +1,118 @@
-import React from 'react';
-
-// ────────────────────────────────────────────────────────
-// ProfileModal — shows a talent's full profile
-// Props:
-//   profile  — profile object from supabaseData.js
-//   color    — accent color from the continent
-//   onClose  — callback to close the modal
-// ────────────────────────────────────────────────────────
+import React, { useState, useEffect } from 'react';
 
 const ProfileModal = ({ profile, color = '#ff00ff', onClose }) => {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (profile) requestAnimationFrame(() => setVisible(true));
+  }, [profile]);
+
   if (!profile) return null;
 
-  const initials = profile.name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .slice(0, 2);
+  const handleClose = () => {
+    setVisible(false);
+    setTimeout(onClose, 300);
+  };
+
+  const initials = profile.name.split(' ').map(n => n[0]).join('').slice(0, 2);
 
   const experienceLabel = {
-    emerging: 'Emerging',
-    professional: 'Professional',
-    veteran: 'Veteran',
-    legendary: 'Legendary',
+    emerging: 'Emerging (0–2 yrs)',
+    professional: 'Professional (3–7 yrs)',
+    veteran: 'Veteran (8–15 yrs)',
+    legendary: 'Legendary (15+ yrs)',
   }[profile.experience] || profile.experience;
 
-  // social / contact links
-  const links = [
-    profile.linkedin && { icon: '🔗', label: 'LinkedIn', url: profile.linkedin },
-    profile.instagram && { icon: '📸', label: 'Instagram', url: profile.instagram },
-    profile.website && { icon: '🌐', label: 'Website', url: profile.website },
-    profile.email && { icon: '✉️', label: profile.email, url: `mailto:${profile.email}` },
+  // Build contact items — display only, NOT clickable
+  const contactItems = [
+    profile.linkedin && { icon: '🔗', label: 'LinkedIn', value: profile.linkedin },
+    profile.instagram && { icon: '📸', label: 'Instagram', value: profile.instagram },
+    profile.website && { icon: '🌐', label: 'Website', value: profile.website },
+    profile.email && { icon: '✉️', label: 'Email', value: profile.email },
   ].filter(Boolean);
 
+  const labelStyle = {
+    display: 'block', marginBottom: '8px', fontSize: '11px',
+    letterSpacing: '3px', fontWeight: 700, color: color,
+    textTransform: 'uppercase',
+  };
+
+  const badgeStyle = (bg, border) => ({
+    display: 'inline-block', padding: '5px 14px', borderRadius: '999px',
+    fontSize: '11px', fontWeight: 700, letterSpacing: '2px',
+    background: bg, border: `1px solid ${border}`, color: color,
+  });
+
   return (
-    <div className="fixed inset-0 z-[150] flex items-start justify-center pointer-events-none pt-[4vh]">
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, pointerEvents: 'none' }}>
       {/* scrim */}
       <div
-        className="absolute inset-0 pointer-events-auto"
-        style={{ background: 'rgba(10, 0, 20, 0.6)' }}
-        onClick={onClose}
+        style={{
+          position: 'absolute', inset: 0, pointerEvents: 'auto',
+          background: 'rgba(10,0,20,0.4)',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 0.3s ease',
+        }}
+        onClick={handleClose}
       />
 
-      {/* panel */}
+      {/* slide-in panel from right */}
       <div
-        className="relative w-[92vw] max-w-xl max-h-[92vh] overflow-y-auto rounded-xl pointer-events-auto p-0"
         style={{
-          background: 'rgba(10, 0, 20, 0.95)',
-          border: `2px solid ${color}`,
-          boxShadow: `0 0 60px ${color}66, inset 0 0 40px ${color}11`,
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          animation: 'profileSlideUp 0.3s ease-out',
+          position: 'absolute', top: 0, right: 0,
+          height: '100%', width: '440px', maxWidth: '94vw',
+          pointerEvents: 'auto', overflowY: 'auto',
+          transform: visible ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          background: 'rgba(10, 0, 20, 0.97)',
+          borderLeft: `2px solid ${color}`,
+          boxShadow: `-10px 0 60px ${color}44, inset 4px 0 30px ${color}11`,
         }}
       >
-        {/* close button */}
+        {/* close */}
         <button
-          className="absolute top-4 right-4 w-9 h-9 border-2 text-lg flex items-center justify-center rounded transition-all hover:rotate-90 z-10"
-          style={{ borderColor: color, color, background: 'transparent' }}
-          onClick={onClose}
-        >
-          ✕
-        </button>
-
-        {/* ── HEADER SECTION ── */}
-        <div
-          className="px-8 pt-8 pb-6 text-center"
+          onClick={handleClose}
           style={{
-            background: `linear-gradient(180deg, ${color}18 0%, transparent 100%)`,
-            borderBottom: `1px solid ${color}22`,
+            position: 'absolute', top: '20px', right: '20px', zIndex: 10,
+            width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `2px solid ${color}`, borderRadius: '6px', background: 'transparent',
+            color: color, fontSize: '18px', cursor: 'pointer',
           }}
-        >
-          {/* avatar */}
+        >✕</button>
+
+        {/* ── HEADER ── */}
+        <div style={{
+          padding: '48px 28px 24px', textAlign: 'center',
+          background: `linear-gradient(180deg, ${color}15 0%, transparent 100%)`,
+          borderBottom: `1px solid ${color}18`,
+        }}>
           {profile.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt={profile.name}
-              className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
-              style={{ border: `3px solid ${color}`, boxShadow: `0 0 20px ${color}44` }}
-            />
+            <img src={profile.avatar_url} alt={profile.name}
+              style={{ width: '90px', height: '90px', borderRadius: '50%', margin: '0 auto 16px',
+                objectFit: 'cover', border: `3px solid ${color}`, boxShadow: `0 0 20px ${color}44` }} />
           ) : (
-            <div
-              className="w-24 h-24 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl font-black"
-              style={{
-                background: `linear-gradient(135deg, ${color}55, ${color}22)`,
-                border: `3px solid ${color}`,
-                boxShadow: `0 0 20px ${color}44`,
-                color: '#fff',
-              }}
-            >
-              {initials}
-            </div>
+            <div style={{
+              width: '90px', height: '90px', borderRadius: '50%', margin: '0 auto 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '32px', fontWeight: 900, color: '#fff',
+              background: `linear-gradient(135deg, ${color}55, ${color}22)`,
+              border: `3px solid ${color}`, boxShadow: `0 0 20px ${color}44`,
+            }}>{initials}</div>
           )}
 
-          {/* name */}
-          <h2
-            className="text-2xl md:text-3xl font-black tracking-wider mb-1"
-            style={{ color, textShadow: `0 0 16px ${color}88` }}
-          >
-            {profile.name}
-          </h2>
+          <h2 style={{
+            fontSize: '26px', fontWeight: 900, letterSpacing: '3px',
+            color: color, textShadow: `0 0 16px ${color}88`, margin: '0 0 4px',
+          }}>{profile.name}</h2>
 
-          {/* role + location */}
-          <p className="text-sm text-fuchsia-300 tracking-widest">
+          <p style={{ color: '#d8b4fe', fontSize: '13px', letterSpacing: '3px', margin: '0 0 14px' }}>
             {profile.role} · {profile.city}, {profile.country}
           </p>
 
-          {/* badges */}
-          <div className="flex justify-center gap-2 mt-3 flex-wrap">
-            <span
-              className="px-3 py-1 rounded-full text-xs font-bold tracking-wider"
-              style={{ background: `${color}22`, border: `1px solid ${color}44`, color }}
-            >
-              {experienceLabel}
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={badgeStyle(`${color}22`, `${color}44`)}>{experienceLabel}</span>
             {profile.years_active && (
-              <span
-                className="px-3 py-1 rounded-full text-xs font-bold tracking-wider"
-                style={{ background: `${color}11`, border: `1px solid ${color}33`, color: '#d8b4fe' }}
-              >
+              <span style={badgeStyle(`${color}11`, `${color}33`)}>
                 {profile.years_active} yrs active
               </span>
             )}
@@ -125,64 +120,42 @@ const ProfileModal = ({ profile, color = '#ff00ff', onClose }) => {
         </div>
 
         {/* ── BODY ── */}
-        <div className="px-8 py-6 space-y-6">
+        <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
           {/* bio */}
-          <div>
-            <h3
-              className="text-xs font-bold tracking-[0.2em] mb-2"
-              style={{ color }}
-            >
-              BIO
-            </h3>
-            <p className="text-sm text-fuchsia-200/80 leading-relaxed">
-              {profile.bio}
-            </p>
-          </div>
+          {profile.bio && (
+            <div>
+              <label style={labelStyle}>BIO</label>
+              <p style={{ color: '#d8b4fecc', fontSize: '14px', lineHeight: '1.7', margin: 0 }}>
+                {profile.bio}
+              </p>
+            </div>
+          )}
 
-          {/* specialty / genres */}
+          {/* specialties */}
           {profile.specialty && (
             <div>
-              <h3
-                className="text-xs font-bold tracking-[0.2em] mb-2"
-                style={{ color }}
-              >
-                SPECIALTIES
-              </h3>
-              <div className="flex flex-wrap gap-2">
+              <label style={labelStyle}>SPECIALTIES</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {profile.specialty.split(',').map((s, i) => (
-                  <span
-                    key={i}
-                    className="px-3 py-1 rounded-full text-xs font-bold tracking-wider"
-                    style={{
-                      background: `${color}15`,
-                      border: `1px solid ${color}33`,
-                      color: '#e9d5ff',
-                    }}
-                  >
-                    {s.trim()}
-                  </span>
+                  <span key={i} style={{
+                    padding: '5px 14px', borderRadius: '999px', fontSize: '12px',
+                    fontWeight: 700, letterSpacing: '1px',
+                    background: `${color}15`, border: `1px solid ${color}33`, color: '#e9d5ff',
+                  }}>{s.trim()}</span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* credits / filmography */}
+          {/* credits */}
           {profile.credits && profile.credits.length > 0 && (
             <div>
-              <h3
-                className="text-xs font-bold tracking-[0.2em] mb-2"
-                style={{ color }}
-              >
-                CREDITS
-              </h3>
-              <div className="space-y-1.5">
+              <label style={labelStyle}>CREDITS</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {profile.credits.map((credit, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 text-sm text-fuchsia-200/70"
-                  >
-                    <span style={{ color }} className="text-xs">▸</span>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#d8b4feaa' }}>
+                    <span style={{ color: color, fontSize: '11px' }}>▸</span>
                     {credit}
                   </div>
                 ))}
@@ -190,34 +163,25 @@ const ProfileModal = ({ profile, color = '#ff00ff', onClose }) => {
             </div>
           )}
 
-          {/* connect — social links + email */}
-          {links.length > 0 && (
+          {/* connect — display only, no links */}
+          {contactItems.length > 0 && (
             <div>
-              <h3
-                className="text-xs font-bold tracking-[0.2em] mb-3"
-                style={{ color }}
-              >
-                CONNECT
-              </h3>
-              <div className="space-y-2">
-                {links.map((link, i) => (
-                  <a
-                    key={i}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all hover:scale-[1.02]"
+              <label style={labelStyle}>CONNECT</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {contactItems.map((item, i) => (
+                  <div key={i}
                     style={{
-                      background: `${color}0a`,
-                      border: `1px solid ${color}22`,
-                      color: '#e9d5ff',
-                      textDecoration: 'none',
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '12px 16px', borderRadius: '8px',
+                      background: `${color}0a`, border: `1px solid ${color}22`,
+                      color: '#e9d5ff', fontSize: '13px', letterSpacing: '1px',
+                      cursor: 'default', userSelect: 'text',
                     }}
                   >
-                    <span className="text-base">{link.icon}</span>
-                    <span className="tracking-wider">{link.label}</span>
-                    <span className="ml-auto text-xs" style={{ color }}>↗</span>
-                  </a>
+                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{item.icon}</span>
+                    <span style={{ color: '#d8b4fe88', fontSize: '11px', letterSpacing: '2px', flexShrink: 0 }}>{item.label}</span>
+                    <span style={{ marginLeft: 'auto', textAlign: 'right', wordBreak: 'break-all' }}>{item.value}</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -225,27 +189,17 @@ const ProfileModal = ({ profile, color = '#ff00ff', onClose }) => {
         </div>
 
         {/* footer */}
-        <div
-          className="px-8 py-4 text-center"
-          style={{ borderTop: `1px solid ${color}11` }}
-        >
-          <button
-            className="px-8 py-3 border-2 bg-transparent font-bold text-sm tracking-widest rounded transition-all hover:-translate-y-0.5"
-            style={{ borderColor: color, color }}
-            onClick={onClose}
-          >
+        <div style={{ padding: '16px 28px 28px', textAlign: 'center' }}>
+          <button onClick={handleClose}
+            style={{
+              width: '100%', padding: '14px', border: `2px solid ${color}`,
+              background: 'transparent', color: color, fontWeight: 700,
+              letterSpacing: '3px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px',
+            }}>
             ← BACK TO RESULTS
           </button>
         </div>
       </div>
-
-      {/* entrance animation */}
-      <style>{`
-        @keyframes profileSlideUp {
-          from { opacity: 0; transform: translateY(30px) scale(0.97); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
     </div>
   );
 };
