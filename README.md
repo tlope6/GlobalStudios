@@ -6,7 +6,7 @@
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 - **Interactive 3D Globe** — Rotate, zoom, and explore a fully rendered Earth with **country borders** drawn from **GeoJSON**
 - **Country Pins** — Clickable pins for every supported country, **color-coded by continent**
@@ -22,13 +22,13 @@
 
 ---
 
-## 🎭 Supported Roles
+## Supported Roles
 
 **Actor/Actress** · **Director** · **Producer** · **Screenwriter** · **Cinematographer** · **Editor** · **Production Designer** · **Casting Director** · **Talent Manager** · **Agent**
 
 ---
 
-## 🗺️ Coverage
+## Coverage
 
 | Continent | Countries |
 |----------|-----------|
@@ -41,7 +41,7 @@
 
 ---
 
-## 🧱 Tech Stack
+## Tech Stack
 
 - **Frontend:** React + Three.js  
 - **Database:** SQL (via Supabase / Postgres)  
@@ -50,7 +50,7 @@
 
 ---
 
-## 🛠️ Local Development
+## Local Development
 
 > Update these commands to match your actual setup (Vite / Next / CRA). These are the most common defaults.
 
