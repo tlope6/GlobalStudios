@@ -6,6 +6,15 @@
 
 ---
 
+## Screen Capture
+
+
+Link to video : https://drive.google.com/file/d/1YOBtVxmbJ1smCIV69BOpnjTBIKTge97F/view?usp=sharing 
+
+
+
+
+
 ## Key Features
 
 - **Interactive 3D Globe** — Rotate, zoom, and explore a fully rendered Earth with **country borders** drawn from **GeoJSON**
@@ -60,3 +69,4 @@ npm install
 
 # 2) Start dev server
 npm run dev
+
